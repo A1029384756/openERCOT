@@ -2,7 +2,7 @@
   description = "Python 3.11 Devshell and Builds";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
     flake-utils.url = "github:numtide/flake-utils";
   };
 
@@ -17,34 +17,55 @@
           python-dotenv
           matplotlib
           requests
+          pip
+          validators
+          deprecation
+          networkx
+          geopandas
+          numpy
+          scipy
+          xarray
+          netcdf4
+          tables
+          pyomo
+          tqdm
+          dask
+          bottleneck
         ];
+
+        linopy = pkgs.python311Packages.buildPythonPackage rec {
+          pname = "linopy";
+          version = "0.3.2";
+
+          src = pkgs.python311Packages.fetchPypi {
+            inherit pname version;
+            hash = "sha256-CPsdbOZzVJzWbu5lQxe7g/+fAb0gOKITvq0lXB+Okw0=";
+          };
+
+          nativeBuildInputs = [
+            pkgs.which
+          ];
+
+          propagatedBuildInputs = commonArgs;
+        };
+
+        pypsa = pkgs.python311Packages.buildPythonPackage rec {
+          pname = "pypsa";
+          version = "0.26.2";
+          format = "pyproject";
+
+          src = pkgs.python311Packages.fetchPypi {
+            inherit pname version;
+            hash = "sha256-uq/ZAF9InBNU4HBKKTLZPZJUyxBoDet70cIkCOCvw9w=";
+          };
+
+          propagatedBuildInputs = commonArgs ++ [ linopy ];
+        };
 
         pyEnv = pkgs.python311.withPackages (ps:
           with pkgs.python311Packages;
-          commonArgs ++ [
-            (
-              buildPythonPackage rec {
-                pname = "pypsa";
-                version = "0.26.2";
-                src = fetchPypi {
-                  inherit pname version;
-                  hash = "sha256-uq/ZAF9InBNU4HBKKTLZPZJUyxBoDet70cIkCOCvw9w=";
-                };
-                propagatedBuildInputs = commonArgs ++ [
-                  pkgs.python311Packages.pip
-                  pkgs.python311Packages.validators
-                  pkgs.python311Packages.deprecation
-                  pkgs.python311Packages.networkx
-                  pkgs.python311Packages.geopandas
-                  pkgs.python311Packages.numpy
-                  pkgs.python311Packages.scipy
-                  pkgs.python311Packages.xarray
-                  pkgs.python311Packages.netcdf4
-                  pkgs.python311Packages.tables
-                  pkgs.python311Packages.pyomo
-                ];
-              }
-            )
+          [
+            pypsa
           ]);
       in
       with pkgs;
