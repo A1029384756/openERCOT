@@ -31,6 +31,7 @@
           tqdm
           dask
           bottleneck
+          openpyxl
         ];
 
         linopy = pkgs.python311Packages.buildPythonPackage rec {
