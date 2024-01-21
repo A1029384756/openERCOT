@@ -75,6 +75,7 @@
           packages = [
             pyEnv
             pyright
+            ruff
           ];
         };
       }
