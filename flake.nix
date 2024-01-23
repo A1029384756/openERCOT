@@ -36,11 +36,11 @@
 
         linopy = pkgs.python311Packages.buildPythonPackage rec {
           pname = "linopy";
-          version = "0.3.2";
+          version = "0.2.6";
 
           src = pkgs.python311Packages.fetchPypi {
             inherit pname version;
-            hash = "sha256-CPsdbOZzVJzWbu5lQxe7g/+fAb0gOKITvq0lXB+Okw0=";
+            hash = "sha256-JOSGfzU5Ejx0WHGUzQecRfUn9f0L4e0B8e8f6q/KpnM=";
           };
 
           nativeBuildInputs = [
