@@ -74,13 +74,13 @@ def build_params_units(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-            '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
-            + start
-            + '","end":"'
-            + end
-            + '","sort":[{"column":"period","direction":"desc"}],"offset":'
-            + str(offset)
-            + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
+        '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
+        + start
+        + '","end":"'
+        + end
+        + '","sort":[{"column":"period","direction":"desc"}],"offset":'
+        + str(offset)
+        + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
     )
 
 
@@ -92,13 +92,13 @@ def build_params_fuels(year: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-            '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
-            + year
-            + '-01", "end": "'
-            + year
-            + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-            + str(offset)
-            + ', "length": 5000 }'
+        '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
+        + year
+        + '-01", "end": "'
+        + year
+        + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+        + str(offset)
+        + ', "length": 5000 }'
     )
 
 
@@ -322,9 +322,9 @@ def build_network(year: int) -> pypsa.Network:
             )
         else:
             if unit["technology"] in (
-                    "Solar Photovoltaic",
-                    "Onshore Wind Turbine",
-                    "Conventional Hydroelectric",
+                "Solar Photovoltaic",
+                "Onshore Wind Turbine",
+                "Conventional Hydroelectric",
             ):
                 # refactor to add this to add wind
                 if "Solar" in unit["technology"]:
@@ -410,8 +410,8 @@ def build_network(year: int) -> pypsa.Network:
                         fuel_index = f"{snapshot.year}-{snapshot.month:02}"
                         try:
                             bid = (
-                                    fuel_prices.loc[fuel_index, unit["energy_source_code"]]
-                                    * heat_rate
+                                fuel_prices.loc[fuel_index, unit["energy_source_code"]]
+                                * heat_rate
                             )
                         except KeyError:
                             print(f"No fuel price for {unit['energy_source_code']}")
@@ -435,9 +435,7 @@ def build_network(year: int) -> pypsa.Network:
 def analyze_network(year: int):
     network = build_network(year)
     network.optimize(solver_name="highs")
-    network.generators_t.p.T.groupby(
-        by=network.generators["carrier"]
-    ).sum().plot.area(
+    network.generators_t.p.T.groupby(by=network.generators["carrier"]).sum().plot.area(
         xlabel="Hour", ylabel="Load (MW)", title="ERCOT Dispatch on January 1st 2022"
     )
     plt.legend(title="Fuel Type")
