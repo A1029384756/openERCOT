@@ -6,16 +6,14 @@ jobs:
   formatting:
     runs-on: ubuntu-latest
     steps:
-      - name: git checkout
-      - uses: actions/checkout@v3
-      - name: Install Nix
-      - uses: cachix/install-nix-action@v22
-        with:
-          github_access_token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Formatting
-        run: nix develop --command ruff format .
-      - name: Commit changes
-        uses: stefanzweifel/git-auto-commit-action@v4
-        with:
-          commit_message: Apply formatting changes
-          branch: ${{ github.head_ref }}
+    - uses: actions/checkout@v3
+    - uses: cachix/install-nix-action@v22
+      with:
+        github_access_token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Formatting
+      run: nix develop --command ruff format .
+    - name: Commit changes
+      uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        commit_message: Apply formatting changes
+        branch: ${{ github.head_ref }}
