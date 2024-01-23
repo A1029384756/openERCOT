@@ -1,5 +1,6 @@
 import math
 import os
+from typing import Tuple
 
 import numpy as np
 import pandas
@@ -12,7 +13,7 @@ from io import BytesIO
 from zipfile import ZipFile
 
 load_dotenv()
-APIKEY = os.getenv("APIKEY")
+
 EIA_API_KEY = os.getenv("EIA_API_KEY")
 CEMS_API_KEY = os.getenv("CEMS_API_KEY")
 
@@ -49,14 +50,6 @@ TRANSMISSION_LINES = [
     ("NORTH CENTRAL", "WEST", 3000),
 ]
 
-ENERGY_SOURCES = [
-    "Energy Source 1",
-    "Energy Source 2",
-    "Energy Source 3",
-    "Energy Source 4",
-    "Energy Source 5",
-]
-
 TECHNOLOGY_MAP = {
     "Wood/Wood Waste Biomass": "OTHER",
     "Petroleum Liquids": "DISTILLATE",
@@ -71,8 +64,6 @@ TECHNOLOGY_MAP = {
     "All Other": "OTHER",
 }
 
-RAMP_MAP = {np.NAN: 1, "10M": 1, "1H": 0.75, "12H": 0.5, "OVER": 0.3}
-
 
 def build_params_units(start: str, end: str, offset: int) -> str:
     """
@@ -83,13 +74,13 @@ def build_params_units(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-        '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
-        + start
-        + '","end":"'
-        + end
-        + '","sort":[{"column":"period","direction":"desc"}],"offset":'
-        + str(offset)
-        + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
+            '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
+            + start
+            + '","end":"'
+            + end
+            + '","sort":[{"column":"period","direction":"desc"}],"offset":'
+            + str(offset)
+            + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
     )
 
 
@@ -101,13 +92,13 @@ def build_params_fuels(year: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-        '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
-        + year
-        + '-01", "end": "'
-        + year
-        + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-        + str(offset)
-        + ', "length": 5000 }'
+            '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
+            + year
+            + '-01", "end": "'
+            + year
+            + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+            + str(offset)
+            + ', "length": 5000 }'
     )
 
 
@@ -124,7 +115,7 @@ def get_eia_units_status(year: int) -> pandas.DataFrame:
     )
 
 
-def get_eia_unit_bounds():
+def get_eia_unit_bounds() -> Tuple[int, str]:
     url = f"https://api.eia.gov/v2/electricity/operating-generator-capacity/"
     r = requests.get(url, params={"api_key": EIA_API_KEY})
     end = r.json()["response"]["endPeriod"]
@@ -159,15 +150,7 @@ def get_eia_unit_data(year: int, last=False):
     return pd.DataFrame(data)
 
 
-def calculate_min_output(nameplate, minimum_output):
-    if math.isnan(minimum_output):
-        return 0
-    else:
-        minimum = minimum_output / nameplate
-        return 0 if minimum < 0.01 else minimum
-
-
-def get_renewable_gen(n_shots):
+def get_renewable_gen(n_shots: int):
     renewable_gen = pd.read_excel(
         "https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId=890277261",
         sheet_name=["Wind Data", "Solar Data"],
@@ -187,7 +170,7 @@ def get_renewable_gen(n_shots):
     ] / 100
 
 
-def build_crosswalk():
+def build_crosswalk() -> pd.DataFrame:
     cross_url = "https://raw.githubusercontent.com/USEPA/camd-eia-crosswalk/master/epa_eia_crosswalk.csv"
     crosswalk = pd.read_csv(
         cross_url,
@@ -201,7 +184,7 @@ def build_crosswalk():
     return crosswalk
 
 
-def get_cems_data(year):
+def get_cems_data(year: int) -> pd.DataFrame:
     headers = {
         "accept": "application/json",
         "x-api-key": CEMS_API_KEY,
@@ -224,7 +207,7 @@ def get_cems_data(year):
     return df
 
 
-def get_fuel_costs(year: int):
+def get_fuel_costs(year: int) -> pd.DataFrame:
     data = []
     url = "https://api.eia.gov/v2/electricity/electric-power-operational-data/data/"
     offset = 0
@@ -241,11 +224,11 @@ def get_fuel_costs(year: int):
         offset += 5000
     costs = pd.DataFrame(data).replace(to_replace=0, value=np.nan).dropna()
     return costs.pivot_table(
-        index="period", columns="fueltypeid", values="cost-per-btu", aggfunc=np.mean
+        index="period", columns="fueltypeid", values="cost-per-btu", aggfunc="mean"
     )
 
 
-def build_heatrates(year):
+def build_heatrates(year) -> pd.DataFrame:
     cross = build_crosswalk()
     cems = get_cems_data(year)
     merged = cems.merge(
@@ -260,7 +243,7 @@ def build_heatrates(year):
     return merged[["EIA_PLANT_ID", "EIA_GENERATOR_ID", "heatRate"]]
 
 
-def build_generators(year):
+def build_generators(year) -> pd.DataFrame:
     units = get_eia_unit_data(year, last=True)
     county_to_zone = pd.read_csv("zone_to_county.csv", index_col="county")
     units = units.merge(county_to_zone, how="left", on="county")
@@ -274,7 +257,7 @@ def build_generators(year):
     return units
 
 
-def build_network(year: int):
+def build_network(year: int) -> pypsa.Network:
     network = pypsa.Network()
     # this needs to be cached
     generators = build_generators(year)
@@ -339,9 +322,9 @@ def build_network(year: int):
             )
         else:
             if unit["technology"] in (
-                "Solar Photovoltaic",
-                "Onshore Wind Turbine",
-                "Conventional Hydroelectric",
+                    "Solar Photovoltaic",
+                    "Onshore Wind Turbine",
+                    "Conventional Hydroelectric",
             ):
                 # refactor to add this to add wind
                 if "Solar" in unit["technology"]:
@@ -427,8 +410,8 @@ def build_network(year: int):
                         fuel_index = f"{snapshot.year}-{snapshot.month:02}"
                         try:
                             bid = (
-                                fuel_prices.loc[fuel_index, unit["energy_source_code"]]
-                                * heat_rate
+                                    fuel_prices.loc[fuel_index, unit["energy_source_code"]]
+                                    * heat_rate
                             )
                         except KeyError:
                             print(f"No fuel price for {unit['energy_source_code']}")
@@ -446,10 +429,14 @@ def build_network(year: int):
         pd.concat(all_caps, axis=1), "Generator", "p_max_pu"
     )
     network.consistency_check()
+    return network
 
+
+def analyze_network(year: int):
+    network = build_network(year)
     network.optimize(solver_name="highs")
-    network.generators_t.p.groupby(
-        by=network.generators["carrier"], axis=1
+    network.generators_t.p.T.groupby(
+        by=network.generators["carrier"]
     ).sum().plot.area(
         xlabel="Hour", ylabel="Load (MW)", title="ERCOT Dispatch on January 1st 2022"
     )
@@ -459,8 +446,6 @@ def build_network(year: int):
     network.buses_t.marginal_price.plot()
     plt.show()
 
-    print(network.model.constraints)
-
 
 if __name__ == "__main__":
-    build_network(2022)
+    analyze_network(2022)
