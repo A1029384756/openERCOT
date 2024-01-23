@@ -111,16 +111,24 @@
       with pkgs;
       {
         packages.default = pyEnv;
-        devShells.default = mkShell {
-          buildInputs = [
-            pypsa
-            highspy
-            linopy
-          ] ++ commonArgs;
-          packages = [
-            pyright
-            ruff
-          ];
+        devShells = {
+          default = mkShell {
+            buildInputs = [
+              pypsa
+              highspy
+              linopy
+            ] ++ commonArgs;
+            packages = [
+              pyright
+              ruff
+            ];
+          };
+
+          formatting = mkShell {
+            packages = [
+              ruff
+            ];
+          };
         };
       }
     );

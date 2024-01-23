@@ -11,7 +11,7 @@ jobs:
       with:
         github_access_token: ${{ secrets.GITHUB_TOKEN }}
     - name: Formatting
-      run: nix develop --command ruff format .
+      run: nix develop .#formatting --command ruff format .
     - name: Commit changes
       uses: stefanzweifel/git-auto-commit-action@v4
       with:
