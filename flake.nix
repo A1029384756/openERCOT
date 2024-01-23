@@ -59,18 +59,18 @@
             let
               computePath = system: (
                 if system == "x86_64-linux" then
-                  "manylinux_2_17_x86_64.manylinux2014_x86_64"
+                  "https://files.pythonhosted.org/packages/31/65/41e1b4774a999bf72301ca4146bc5050cd803ef46dfd7bcc12a3da192cbb/highspy-1.5.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl"
                 else if system == "aarch64-linux" then
-                  "manylinux_2_17_aarch64.manylinux2014_aarch64"
+                  "https://files.pythonhosted.org/packages/e9/96/181e035721a3382fdef9c9135d6f2f3bcfbb56a714d7b51599038755d471/highspy-1.5.3-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl"
                 else if system == "x86_64-darwin" then
-                  "macosx_10_9_x86_64"
-                else if system == "aarch64-darwin" then
-                  "macosx_11_0_arm64"
+                "https://files.pythonhosted.org/packages/51/ce/8be1539eaffb4f66fecb08dd636a43093811b54aacbb037ab45e9ab4d15d/highspy-1.5.3-cp311-cp311-macosx_11_0_arm64.whl"
+                  else if system == "aarch64-darwin" then
+                  "https://files.pythonhosted.org/packages/c3/38/12839b494a28bd30e562f91794b7e64c30853caa224996e304c7b21ce988/highspy-1.5.3-cp311-cp311-macosx_10_9_x86_64.whl"
                 else throw "Unsupported system: ${system}"
               );
             in
             builtins.fetchurl {
-              url = "https://files.pythonhosted.org/packages/31/65/41e1b4774a999bf72301ca4146bc5050cd803ef46dfd7bcc12a3da192cbb/highspy-1.5.3-cp311-cp311-${computePath(system)}.whl";
+              url = "";
               sha256 = "sha256:0ya5ydxkxan19a8q16hz766b131wjh7dqiicfwdmkfv1hcchxk61";
             };
         };
