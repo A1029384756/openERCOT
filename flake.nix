@@ -60,6 +60,8 @@
               computePath = system: (
                 if system == "x86_64-linux" then
                   "manylinux_2_17_x86_64.manylinux2014_x86_64"
+                else if system == "aarch64-linux" then
+                  "manylinux_2_17_aarch64.manylinux2014_aarch64"
                 else if system == "x86_64-darwin" then
                   "macosx_10_9_x86_64"
                 else if system == "aarch64-darwin" then
