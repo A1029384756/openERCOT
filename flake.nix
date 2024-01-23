@@ -32,6 +32,7 @@
           dask
           bottleneck
           openpyxl
+          python-lsp-ruff
         ];
 
         linopy = pkgs.python311Packages.buildPythonPackage rec {
