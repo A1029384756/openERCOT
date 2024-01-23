@@ -71,6 +71,7 @@
       in
       with pkgs;
       {
+        packages.default = pyEnv;
         devShells.default = mkShell {
           packages = [
             pyEnv

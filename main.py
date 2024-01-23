@@ -326,7 +326,7 @@ def build_network(year: int):
     all_caps = []
 
     for index, unit in generators.iterrows():
-        unit_name = str(unit["plantid"]) + "-" + unit["generatorid"]
+        unit_name = str(unit["plantid"]) + "-" + str(unit["generatorid"])
 
         if unit["technology"] == "Batteries" or unit["technology"] == "Flywheels":
             network.add(
