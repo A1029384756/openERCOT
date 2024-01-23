@@ -98,8 +98,12 @@
       {
         packages.default = pyEnv;
         devShells.default = mkShell {
+          buildInputs = [
+            pypsa
+            highspy
+            linopy
+          ] ++ commonArgs;
           packages = [
-            pyEnv
             pyright
             ruff
           ];
