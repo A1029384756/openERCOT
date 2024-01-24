@@ -116,7 +116,7 @@ def get_eia_units_status(year: int) -> pandas.DataFrame:
 
 
 def get_eia_unit_bounds() -> Tuple[int, str]:
-    url = f"https://api.eia.gov/v2/electricity/operating-generator-capacity/"
+    url = "https://api.eia.gov/v2/electricity/operating-generator-capacity/"
     r = requests.get(url, params={"api_key": EIA_API_KEY})
     end = r.json()["response"]["endPeriod"]
     return int(end[0:4]), end
@@ -150,7 +150,12 @@ def get_eia_unit_data(year: int, last=False):
     return pd.DataFrame(data)
 
 
-def get_renewable_gen(n_shots: int):
+def get_renewable_gen(n_shots: pd.Series) -> Tuple[pd.Series, pd.Series]:
+    """
+    finds the renewable generation for ERCOT in a percentage of installed capacity
+    :param n_shots: takes a series of snapshots to find generation for
+    :return: returns a tuple with the solar and wind percentage generation
+    """
     renewable_gen = pd.read_excel(
         "https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId=890277261",
         sheet_name=["Wind Data", "Solar Data"],
@@ -257,7 +262,7 @@ def build_generators(year) -> pd.DataFrame:
     return units
 
 
-def build_network(year: int) -> pypsa.Network:
+def build_network(year: int, n_shots: int) -> pypsa.Network:
     network = pypsa.Network()
     # this needs to be cached
     generators = build_generators(year)
@@ -276,7 +281,7 @@ def build_network(year: int) -> pypsa.Network:
     load_data["Hour Ending"] = pd.to_datetime(load_data["Hour Ending"])
     load_data.set_index("Hour Ending", inplace=True)
 
-    network.snapshots = load_data.head(23).index
+    network.snapshots = load_data.head(n_shots).index
 
     solar_cap, wind_cap = get_renewable_gen(network.snapshots)
 
@@ -297,7 +302,7 @@ def build_network(year: int) -> pypsa.Network:
 
     for load in WEATHER_ZONES.keys():
         network.add(
-            "Load", name=load + "L", bus=load, p_set=load_data[load].head(23).values
+            "Load", name=load + "L", bus=load, p_set=load_data[load].head(n_shots).values
         )
 
     for START, END, TTC in TRANSMISSION_LINES:
@@ -414,7 +419,6 @@ def build_network(year: int) -> pypsa.Network:
                                 * heat_rate
                             )
                         except KeyError:
-                            print(f"No fuel price for {unit['energy_source_code']}")
                             bid = 0
                         bids.append(bid)
 
@@ -432,8 +436,8 @@ def build_network(year: int) -> pypsa.Network:
     return network
 
 
-def analyze_network(year: int):
-    network = build_network(year)
+def analyze_network(year: int, n_shots: int):
+    network = build_network(year, n_shots)
     network.optimize(solver_name="highs")
     network.generators_t.p.T.groupby(by=network.generators["carrier"]).sum().plot.area(
         xlabel="Hour", ylabel="Load (MW)", title="ERCOT Dispatch on January 1st 2022"
@@ -441,9 +445,9 @@ def analyze_network(year: int):
     plt.legend(title="Fuel Type")
     plt.show()
 
-    network.buses_t.marginal_price.plot()
+    network.buses_t.marginal_price.plot(xlabel="Date", ylabel="Price ($/MWH)", title="Zonal Price for ERCOT Dispatch")
     plt.show()
 
 
 if __name__ == "__main__":
-    analyze_network(2022)
+    analyze_network(2022, 24*90)
