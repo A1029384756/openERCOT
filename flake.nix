@@ -33,7 +33,7 @@
           bottleneck
           openpyxl
           python-lsp-ruff
-          pandera
+          multimethod
         ];
 
         linopy = pkgs.python311Packages.buildPythonPackage rec {
@@ -100,7 +100,7 @@
             hash = "sha256-uq/ZAF9InBNU4HBKKTLZPZJUyxBoDet70cIkCOCvw9w=";
           };
 
-          propagatedBuildInputs = commonArgs ++ [ linopy highspy ];
+          propagatedBuildInputs = commonArgs ++ [ pandera linopy highspy ];
         };
 
         pandera = pkgs.python311Packages.buildPythonPackage rec {
@@ -113,7 +113,7 @@
             hash = "sha256-l6sz2IQ2LAu5lmihK+KFXRXBpx9JNMWIqZmUe0d2S8E=";
           };
 
-          propagatedBuildInputs = with pkgs.python3Packages; [ setuptools ];
+          propagatedBuildInputs = with pkgs.python3Packages; commonArgs ++ [ setuptools ];
         };
 
         pyEnv = pkgs.python311.withPackages (ps:
