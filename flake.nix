@@ -34,6 +34,12 @@
           openpyxl
           python-lsp-ruff
           multimethod
+          wrapt
+          typeguard
+          typing-extensions
+          typing-inspect
+          packaging
+          pydantic
         ];
 
         linopy = pkgs.python311Packages.buildPythonPackage rec {
