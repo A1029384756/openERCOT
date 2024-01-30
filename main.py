@@ -66,7 +66,7 @@ TECHNOLOGY_MAP = {
     "WIND": "wind",
     "NUCLEAR": "nuclear",
     "LANDFILL GAS": "other",
-    "SOLAR": "solar"
+    "SOLAR": "solar",
 }
 
 
@@ -108,9 +108,17 @@ def build_params_fuels(year: str, offset: int) -> str:
 
 
 def build_params_generations(year: str, plant_ids: List[str], offset: int) -> str:
-    return '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "' + '", "'.join(
-        plant_ids) + '" ] }, "start": "' + year + '-01", "end": "' + year + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": ' + str(
-        offset) + ', "length": 5000 }'
+    return (
+        '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
+        + '", "'.join(plant_ids)
+        + '" ] }, "start": "'
+        + year
+        + '-01", "end": "'
+        + year
+        + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+        + str(offset)
+        + ', "length": 5000 }'
+    )
 
 
 def get_eia_units_status(year: int) -> pandas.DataFrame:
@@ -239,7 +247,12 @@ def get_fuel_costs(year: int) -> pd.DataFrame:
         total = int(r.json()["response"]["total"])
         data.extend(r.json()["response"]["data"])
         offset += 5000
-    costs = pd.DataFrame(data).replace(to_replace=0, value=np.nan).dropna().astype({"cost-per-btu": float})
+    costs = (
+        pd.DataFrame(data)
+        .replace(to_replace=0, value=np.nan)
+        .dropna()
+        .astype({"cost-per-btu": float})
+    )
     return costs.pivot_table(
         index="period", columns="fueltypeid", values="cost-per-btu", aggfunc="mean"
     )
@@ -269,7 +282,11 @@ def get_eia_unit_generation(year: int, plant_ids) -> pd.DataFrame:
     while offset == 0 or offset < total:
         r = requests.get(
             url,
-            headers={"x-params": build_params_generations(year=str(year), plant_ids=plant_ids, offset=offset)},
+            headers={
+                "x-params": build_params_generations(
+                    year=str(year), plant_ids=plant_ids, offset=offset
+                )
+            },
             params={"api_key": EIA_API_KEY},
         )
         total = int(r.json()["response"]["total"])
@@ -280,7 +297,9 @@ def get_eia_unit_generation(year: int, plant_ids) -> pd.DataFrame:
 
 def build_heatrates_plant(year, plant_ids) -> pd.DataFrame:
     gen = get_eia_unit_generation(year, plant_ids)
-    gen["heatRate"] = gen["total-consumption-btu"].astype(float) / gen["generation"].astype(float)
+    gen["heatRate"] = gen["total-consumption-btu"].astype(float) / gen[
+        "generation"
+    ].astype(float)
     gen["plantCode"] = gen["plantCode"].astype(pd.Int32Dtype())
     return gen
 
@@ -292,7 +311,8 @@ def build_generators(year) -> pd.DataFrame:
     heatrates = build_heatrates_plant(year, units["plantid"].unique().astype(str))
     units = units.merge(
         heatrates,
-        left_on="plantid", right_on="plantCode",
+        left_on="plantid",
+        right_on="plantCode",
         how="left",
     )
     return units
@@ -319,7 +339,9 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
     load_data["Hour Ending"] = load_data["Hour Ending"].str.replace("24:00", "00:00")
     load_data["Hour Ending"] = pd.to_datetime(load_data["Hour Ending"])
     load_data.set_index("Hour Ending", inplace=True)
-    load_data.index = load_data.index.map(lambda x: x + pd.Timedelta(1, 'D') if x.hour == 0 else x)
+    load_data.index = load_data.index.map(
+        lambda x: x + pd.Timedelta(1, "D") if x.hour == 0 else x
+    )
 
     network.snapshots = load_data.head(n_shots).index
     solar_cap, wind_cap = get_renewable_gen(network.snapshots)
@@ -498,7 +520,9 @@ def analyze_network(year: int, n_shots: int):
 def compare_fuel_mix():
     actual = pd.read_csv("2022_fuel_mix.csv", index_col="hour_ending").head(31 * 24)
     simulated = pd.read_csv("2022_jan_sim.csv", index_col="snapshot")
-    sum_merged = pd.concat([actual.sum(axis=1), simulated.sum(axis=1)], join="inner", axis=1)
+    sum_merged = pd.concat(
+        [actual.sum(axis=1), simulated.sum(axis=1)], join="inner", axis=1
+    )
     sum_merged.plot()
     plt.show()
     actual.sub(simulated).dropna(axis=1).head(72).plot()
