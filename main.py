@@ -1,6 +1,6 @@
 import math
 import os
-from typing import Tuple
+from typing import Tuple, List
 
 import numpy as np
 import pandas
@@ -50,18 +50,23 @@ TRANSMISSION_LINES = [
     ("NORTH CENTRAL", "WEST", 3000),
 ]
 
+# allows the comparison of ERCOT fuel mix and simulation output
 TECHNOLOGY_MAP = {
-    "Wood/Wood Waste Biomass": "OTHER",
-    "Petroleum Liquids": "DISTILLATE",
-    "Petroleum Coke": "COAL",
-    "Other Waste Biomass": "OTHER",
-    "Natural Gas Fired Combined Cycle": "NATURAL GAS",
-    "Natural Gas Fired Combustion Turbine": "NATURAL GAS",
-    "Natural Gas Internal Combustion Engine": "NATURAL GAS",
-    "Natural Gas Steam Turbine": "NATURAL GAS",
-    "Landfill Gas": "NATURAL GAS",
-    "Conventional Steam Coal": "COAL",
-    "All Other": "OTHER",
+    "Wood/Wood Waste Biomass": "biomass",
+    "Petroleum Liquids": "other",
+    "Petroleum Coke": "coal",
+    "Other Waste Biomass": "other",
+    "Natural Gas Fired Combined Cycle": "gascc",
+    "Natural Gas Fired Combustion Turbine": "gas",
+    "Natural Gas Internal Combustion Engine": "gas",
+    "Natural Gas Steam Turbine": "gas",
+    "Landfill Gas": "gas",
+    "Conventional Steam Coal": "coal",
+    "All Other": "other",
+    "WIND": "wind",
+    "NUCLEAR": "nuclear",
+    "LANDFILL GAS": "other",
+    "SOLAR": "solar"
 }
 
 
@@ -102,6 +107,12 @@ def build_params_fuels(year: str, offset: int) -> str:
     )
 
 
+def build_params_generations(year: str, plant_ids: List[str], offset: int) -> str:
+    return '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "' + '", "'.join(
+        plant_ids) + '" ] }, "start": "' + year + '-01", "end": "' + year + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": ' + str(
+        offset) + ', "length": 5000 }'
+
+
 def get_eia_units_status(year: int) -> pandas.DataFrame:
     """
     gets eia statuses for units in a specific year
@@ -125,8 +136,8 @@ def get_eia_unit_bounds() -> Tuple[int, str]:
 def get_eia_unit_data(year: int, last=False):
     data = []
     url = "https://api.eia.gov/v2/electricity/operating-generator-capacity/data/"
-    offset = 0
-    total = 0
+    offset: int = 0
+    total: int = 0
     year_month = str(year) + "-12"
     latest_year, end = get_eia_unit_bounds()
     if latest_year == year:
@@ -144,10 +155,11 @@ def get_eia_unit_data(year: int, last=False):
             },
             params={"api_key": EIA_API_KEY},
         )
-        total = r.json()["response"]["total"]
+        total = int(r.json()["response"]["total"])
         data.extend(r.json()["response"]["data"])
         offset += 5000
-    return pd.DataFrame(data)
+    total_data = pd.DataFrame(data)
+    return total_data.astype({"plantid": pd.Int32Dtype()})
 
 
 def get_renewable_gen(n_shots: pd.Series) -> Tuple[pd.Series, pd.Series]:
@@ -215,8 +227,8 @@ def get_cems_data(year: int) -> pd.DataFrame:
 def get_fuel_costs(year: int) -> pd.DataFrame:
     data = []
     url = "https://api.eia.gov/v2/electricity/electric-power-operational-data/data/"
-    offset = 0
-    total = 0
+    offset: int = 0
+    total: int = 0
 
     while offset == 0 or offset < total:
         r = requests.get(
@@ -224,16 +236,16 @@ def get_fuel_costs(year: int) -> pd.DataFrame:
             headers={"x-params": build_params_fuels(str(year), offset)},
             params={"api_key": EIA_API_KEY},
         )
-        total = r.json()["response"]["total"]
+        total = int(r.json()["response"]["total"])
         data.extend(r.json()["response"]["data"])
         offset += 5000
-    costs = pd.DataFrame(data).replace(to_replace=0, value=np.nan).dropna()
+    costs = pd.DataFrame(data).replace(to_replace=0, value=np.nan).dropna().astype({"cost-per-btu": float})
     return costs.pivot_table(
         index="period", columns="fueltypeid", values="cost-per-btu", aggfunc="mean"
     )
 
 
-def build_heatrates(year) -> pd.DataFrame:
+def build_heatrates_unit(year) -> pd.DataFrame:
     cross = build_crosswalk()
     cems = get_cems_data(year)
     merged = cems.merge(
@@ -248,15 +260,39 @@ def build_heatrates(year) -> pd.DataFrame:
     return merged[["EIA_PLANT_ID", "EIA_GENERATOR_ID", "heatRate"]]
 
 
+def get_eia_unit_generation(year: int, plant_ids) -> pd.DataFrame:
+    data = []
+    url = "https://api.eia.gov/v2/electricity/facility-fuel/data/"
+    offset: int = 0
+    total: int = 0
+
+    while offset == 0 or offset < total:
+        r = requests.get(
+            url,
+            headers={"x-params": build_params_generations(year=str(year), plant_ids=plant_ids, offset=offset)},
+            params={"api_key": EIA_API_KEY},
+        )
+        total = int(r.json()["response"]["total"])
+        data.extend(r.json()["response"]["data"])
+        offset += 5000
+    return pd.DataFrame(data)
+
+
+def build_heatrates_plant(year, plant_ids) -> pd.DataFrame:
+    gen = get_eia_unit_generation(year, plant_ids)
+    gen["heatRate"] = gen["total-consumption-btu"].astype(float) / gen["generation"].astype(float)
+    gen["plantCode"] = gen["plantCode"].astype(pd.Int32Dtype())
+    return gen
+
+
 def build_generators(year) -> pd.DataFrame:
     units = get_eia_unit_data(year, last=True)
     county_to_zone = pd.read_csv("zone_to_county.csv", index_col="county")
     units = units.merge(county_to_zone, how="left", on="county")
-    heatrates = build_heatrates(year)
+    heatrates = build_heatrates_plant(year, units["plantid"].unique().astype(str))
     units = units.merge(
         heatrates,
-        left_on=["plantid", "generatorid"],
-        right_on=["EIA_PLANT_ID", "EIA_GENERATOR_ID"],
+        left_on="plantid", right_on="plantCode",
         how="left",
     )
     return units
@@ -266,6 +302,7 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
     network = pypsa.Network()
     # this needs to be cached
     generators = build_generators(year)
+    generators.to_csv("gen.csv")
     generators["nameplate-capacity-mw"] = pd.to_numeric(
         generators["nameplate-capacity-mw"], errors="coerce"
     )
@@ -276,13 +313,15 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
         ZipFile(BytesIO(url.content)).open("Native_Load_2022.xlsx")
     )
     load_data.rename(mapper=ZONE_NAME_MAP, axis=1, inplace=True)
+    # drop daylight savings hour
     load_data = load_data[~load_data["Hour Ending"].str.contains("DST", na=False)]
-    load_data = load_data[~load_data["Hour Ending"].str.contains("24", na=False)]
+    # shift HE 24 to HE 0 the next day
+    load_data["Hour Ending"] = load_data["Hour Ending"].str.replace("24:00", "00:00")
     load_data["Hour Ending"] = pd.to_datetime(load_data["Hour Ending"])
     load_data.set_index("Hour Ending", inplace=True)
+    load_data.index = load_data.index.map(lambda x: x + pd.Timedelta(1, 'D') if x.hour == 0 else x)
 
     network.snapshots = load_data.head(n_shots).index
-
     solar_cap, wind_cap = get_renewable_gen(network.snapshots)
 
     default_heat_rates = generators.groupby("technology")["heatRate"].mean().dropna()
@@ -439,9 +478,11 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
 def analyze_network(year: int, n_shots: int):
     network = build_network(year, n_shots)
     network.optimize(solver_name="highs")
-    network.generators_t.p.T.groupby(by=network.generators["carrier"]).sum().plot.area(
+    grouped = network.generators_t.p.T.groupby(by=network.generators["carrier"]).sum()
+    grouped.plot.area(
         xlabel="Hour", ylabel="Load (MW)", title="ERCOT Dispatch on January 1st 2022"
     )
+    grouped.T.to_csv("2022_jan_sim_plants.csv")
     plt.legend(title="Fuel Type")
     plt.show()
 
@@ -449,5 +490,16 @@ def analyze_network(year: int, n_shots: int):
     plt.show()
 
 
+def compare_fuel_mix():
+    actual = pd.read_csv("2022_fuel_mix.csv", index_col="hour_ending").head(31 * 24)
+    simulated = pd.read_csv("2022_jan_sim.csv", index_col="snapshot")
+    sum_merged = pd.concat([actual.sum(axis=1), simulated.sum(axis=1)], join="inner", axis=1)
+    sum_merged.plot()
+    plt.show()
+    actual.sub(simulated).dropna(axis=1).head(72).plot()
+    plt.show()
+
+
 if __name__ == "__main__":
-    analyze_network(2022, 24 * 90)
+    compare_fuel_mix()
+    # analyze_network(2022, 31 * 24)
