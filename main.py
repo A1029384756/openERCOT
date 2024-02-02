@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 from io import BytesIO
 from zipfile import ZipFile
+from ercot_data import get_fuel_mix_data
 
 load_dotenv()
 
@@ -56,17 +57,30 @@ TECHNOLOGY_MAP = {
     "Petroleum Liquids": "other",
     "Petroleum Coke": "coal",
     "Other Waste Biomass": "other",
-    "Natural Gas Fired Combined Cycle": "gascc",
+    "Natural Gas Fired Combined Cycle": "gas",
     "Natural Gas Fired Combustion Turbine": "gas",
     "Natural Gas Internal Combustion Engine": "gas",
     "Natural Gas Steam Turbine": "gas",
     "Landfill Gas": "gas",
     "Conventional Steam Coal": "coal",
     "All Other": "other",
-    "WIND": "wind",
-    "NUCLEAR": "nuclear",
-    "LANDFILL GAS": "other",
-    "SOLAR": "solar",
+    "Solar Photovoltaic": "solar",
+    "Onshore Wind Turbine": "wind",
+    "Conventional Hydroelectric": "hydro",
+}
+
+TECHNOLOGY_VOM = {
+    "Wood/Wood Waste Biomass": 5.44,
+    "Petroleum Liquids": 5.29,
+    "Petroleum Coke": 5.06,
+    "Other Waste Biomass": 5.44,
+    "Natural Gas Fired Combined Cycle": 2.87,
+    "Natural Gas Fired Combustion Turbine": 5.06,
+    "Natural Gas Internal Combustion Engine": 6.40,
+    "Natural Gas Steam Turbine": 2.10,
+    "Landfill Gas": 5.29,
+    "Conventional Steam Coal": 5.06,
+    "All Other": 6.4,
 }
 
 
@@ -79,13 +93,13 @@ def build_params_units(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-        '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
-        + start
-        + '","end":"'
-        + end
-        + '","sort":[{"column":"period","direction":"desc"}],"offset":'
-        + str(offset)
-        + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
+            '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
+            + start
+            + '","end":"'
+            + end
+            + '","sort":[{"column":"period","direction":"desc"}],"offset":'
+            + str(offset)
+            + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
     )
 
 
@@ -97,27 +111,34 @@ def build_params_fuels(year: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-        '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
-        + year
-        + '-01", "end": "'
-        + year
-        + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-        + str(offset)
-        + ', "length": 5000 }'
+            '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
+            + year
+            + '-01", "end": "'
+            + year
+            + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+            + str(offset)
+            + ', "length": 5000 }'
     )
 
 
 def build_params_generations(year: str, plant_ids: List[str], offset: int) -> str:
+    """
+    builds x-params for eia fuels api call
+    :param year: year to get data
+    :param plant_ids: EIA plant IDs to retrieve data for
+    :param offset: integer offset for pagination
+    :return: x-params as a string
+    """
     return (
-        '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
-        + '", "'.join(plant_ids)
-        + '" ] }, "start": "'
-        + year
-        + '-01", "end": "'
-        + year
-        + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-        + str(offset)
-        + ', "length": 5000 }'
+            '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
+            + '", "'.join(plant_ids)
+            + '" ] }, "start": "'
+            + year
+            + '-01", "end": "'
+            + year
+            + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+            + str(offset)
+            + ', "length": 5000 }'
     )
 
 
@@ -134,20 +155,24 @@ def get_eia_units_status(year: int) -> pandas.DataFrame:
     )
 
 
-def get_eia_unit_bounds() -> Tuple[int, str]:
+def get_eia_unit_capacity_bounds() -> Tuple[int, str]:
+    """
+    retrieves EIA API bounds for operating generator capacity
+    :return: year, year-month as int, string
+    """
     url = "https://api.eia.gov/v2/electricity/operating-generator-capacity/"
     r = requests.get(url, params={"api_key": EIA_API_KEY})
     end = r.json()["response"]["endPeriod"]
     return int(end[0:4]), end
 
 
-def get_eia_unit_data(year: int, last=False):
+def get_eia_unit_data(year: int, last=False) -> pd.DataFrame:
     data = []
     url = "https://api.eia.gov/v2/electricity/operating-generator-capacity/data/"
     offset: int = 0
     total: int = 0
     year_month = str(year) + "-12"
-    latest_year, end = get_eia_unit_bounds()
+    latest_year, end = get_eia_unit_capacity_bounds()
     if latest_year == year:
         year_month = end
     elif year > latest_year:
@@ -170,7 +195,7 @@ def get_eia_unit_data(year: int, last=False):
     return total_data.astype({"plantid": pd.Int32Dtype()})
 
 
-def get_renewable_gen(n_shots: pd.Series) -> Tuple[pd.Series, pd.Series]:
+def get_renewable_gen(n_shots: pd.Series) -> dict[str, pd.Series]:
     """
     finds the renewable generation for ERCOT in a percentage of installed capacity
     :param n_shots: takes a series of snapshots to find generation for
@@ -190,9 +215,21 @@ def get_renewable_gen(n_shots: pd.Series) -> Tuple[pd.Series, pd.Series]:
     solar.index = pd.to_datetime(solar.index)
     solar = solar[solar.index.isin(n_shots)]
     wind = wind[wind.index.isin(n_shots)]
-    return solar["Solar Output, % of Installed"] / 100, wind[
-        "Wind Output, % of Installed"
-    ] / 100
+
+    # refactor this to be less brittle
+    # cache this
+    # only works for 2022
+    hydro_gen = get_fuel_mix_data()
+    hydro_gen.index = pd.to_datetime(hydro_gen.index)
+    hydro_gen = hydro_gen[hydro_gen.index.isin(n_shots)]
+
+    caps = {
+        "Solar Photovoltaic": solar["Solar Output, % of Installed"] / 100,
+        "Onshore Wind Turbine": wind["Wind Output, % of Installed"] / 100,
+        "Conventional Hydroelectric": hydro_gen["hydro"] / hydro_gen["hydro"].max(),
+    }
+
+    return caps
 
 
 def build_crosswalk() -> pd.DataFrame:
@@ -344,7 +381,7 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
     )
 
     network.snapshots = load_data.head(n_shots).index
-    solar_cap, wind_cap = get_renewable_gen(network.snapshots)
+    renewable_caps = get_renewable_gen(network.snapshots)
 
     default_heat_rates = generators.groupby("technology")["heatRate"].mean().dropna()
     # https://www.eia.gov/electricity/annual/html/epa_08_02.html
@@ -387,61 +424,32 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
                 bus=unit["weather_zone"],
                 type="Battery",
                 p_nom=unit["nameplate-capacity-mw"],
-                marginal_cost=500,
+                carrier="mwh",
             )
         else:
             if unit["technology"] in (
-                "Solar Photovoltaic",
-                "Onshore Wind Turbine",
-                "Conventional Hydroelectric",
+                    "Solar Photovoltaic",
+                    "Onshore Wind Turbine",
+                    "Conventional Hydroelectric",
             ):
-                # refactor to add this to add wind
-                if "Solar" in unit["technology"]:
-                    all_caps.append(
-                        pd.Series(solar_cap, name=unit_name, index=network.snapshots)
-                    )
-                    all_bids.append(
-                        pd.Series(-20, name=unit_name, index=network.snapshots)
-                    )
-                    network.add(
-                        "Generator",
-                        name=unit_name,
-                        bus=unit["weather_zone"],
-                        p_nom=unit["nameplate-capacity-mw"],
-                        carrier="SOLAR",
-                        type=unit["technology"],
-                    )
-
-                elif "Wind" in unit["technology"]:
-                    all_caps.append(
-                        pd.Series(wind_cap, name=unit_name, index=network.snapshots)
-                    )
-                    all_bids.append(
-                        pd.Series(-20, name=unit_name, index=network.snapshots)
-                    )
-                    network.add(
-                        "Generator",
-                        name=unit_name,
-                        bus=unit["weather_zone"],
-                        p_nom=unit["nameplate-capacity-mw"],
-                        carrier="WIND",
-                        type=unit["technology"],
-                    )
+                all_caps.append(
+                    pd.Series(renewable_caps[unit["technology"]], name=unit_name,
+                              index=network.snapshots)
+                )
+                all_bids.append(
+                    pd.Series(-20, name=unit_name, index=network.snapshots)
+                )
+                network.add(
+                    "Generator",
+                    name=unit_name,
+                    bus=unit["weather_zone"],
+                    p_nom=unit["nameplate-capacity-mw"],
+                    carrier=TECHNOLOGY_MAP[unit["technology"]],
+                    type=unit["technology"],
+                )
             else:
                 if "Nuclear" in unit["technology"]:
-                    all_bids.append(
-                        pd.Series(5, name=unit_name, index=network.snapshots)
-                    )
-                    network.add(
-                        "Generator",
-                        name=unit_name,
-                        bus=unit["weather_zone"],
-                        p_nom=unit["nameplate-capacity-mw"],
-                        carrier="NUCLEAR",
-                        type=unit["technology"],
-                    )
-                elif "Landfill Gas" in unit["technology"]:
-                    # we currently consider landfill gas to be baseload and will always run
+                    # we consider nuclear to be base load, and will always run
                     all_bids.append(
                         pd.Series(0, name=unit_name, index=network.snapshots)
                     )
@@ -450,7 +458,20 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
                         name=unit_name,
                         bus=unit["weather_zone"],
                         p_nom=unit["nameplate-capacity-mw"],
-                        carrier="LANDFILL GAS",
+                        carrier="nuclear",
+                        type=unit["technology"],
+                    )
+                elif "Landfill Gas" in unit["technology"]:
+                    # we currently consider landfill gas to be base load and will always run
+                    all_bids.append(
+                        pd.Series(0, name=unit_name, index=network.snapshots)
+                    )
+                    network.add(
+                        "Generator",
+                        name=unit_name,
+                        bus=unit["weather_zone"],
+                        p_nom=unit["nameplate-capacity-mw"],
+                        carrier="other",
                         type=unit["technology"],
                     )
                 else:
@@ -474,17 +495,17 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
 
                     bids = []
 
-                    # refactor to just do each month as a chunk
-                    for snapshot in network.snapshots:
-                        fuel_index = f"{snapshot.year}-{snapshot.month:02}"
+                    for month, snapshot_chunk in network.snapshots.to_series().groupby(pd.Grouper(freq='M')):
+                        fuel_index = f"{month.year}-{month.month:02}"
                         try:
                             bid = (
-                                fuel_prices.loc[fuel_index, unit["energy_source_code"]]
-                                * heat_rate
+                                    (fuel_prices.loc[fuel_index, unit["energy_source_code"]]
+                                     * heat_rate) + TECHNOLOGY_VOM[unit["technology"]]
                             )
                         except KeyError:
+                            print(f"No Fuel Price For {unit['energy_source_code']} in {fuel_index}")
                             bid = 0
-                        bids.append(bid)
+                        bids.extend([bid] * snapshot_chunk.size)
 
                     all_bids.append(
                         pd.Series(bids, name=unit_name, index=network.snapshots)
@@ -493,6 +514,7 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
     network.import_series_from_dataframe(
         pd.concat(all_bids, axis=1), "Generator", "marginal_cost"
     )
+
     network.import_series_from_dataframe(
         pd.concat(all_caps, axis=1), "Generator", "p_max_pu"
     )
@@ -503,12 +525,17 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
 def analyze_network(year: int, n_shots: int):
     network = build_network(year, n_shots)
     network.optimize(solver_name="highs")
-    grouped = network.generators_t.p.T.groupby(by=network.generators["carrier"]).sum()
+    grouped = network.generators_t.p.T.groupby(by=network.generators["carrier"]).sum().T
+    grouped["storage"] = network.storage_units_t.p.sum(axis=1).clip(lower=0)
     grouped.plot.area(
         xlabel="Hour", ylabel="Load (MW)", title="ERCOT Dispatch on January 1st 2022"
     )
-    grouped.T.to_csv("2022_jan_sim_plants.csv")
+
+    grouped.to_csv("2022_jan_sim_plants.csv")
     plt.legend(title="Fuel Type")
+    plt.show()
+
+    network.storage_units_t.p.sum(axis=1).head(24 * 7).plot(title="Net Battery Charge", ylabel="Net Charge MWs")
     plt.show()
 
     network.buses_t.marginal_price.plot(
@@ -519,7 +546,7 @@ def analyze_network(year: int, n_shots: int):
 
 def compare_fuel_mix():
     actual = pd.read_csv("2022_fuel_mix.csv", index_col="hour_ending").head(31 * 24)
-    simulated = pd.read_csv("2022_jan_sim.csv", index_col="snapshot")
+    simulated = pd.read_csv("2022_jan_sim_plants.csv", index_col="snapshot")
     sum_merged = pd.concat(
         [actual.sum(axis=1), simulated.sum(axis=1)], join="inner", axis=1
     )
@@ -530,5 +557,5 @@ def compare_fuel_mix():
 
 
 if __name__ == "__main__":
-    compare_fuel_mix()
-    # analyze_network(2022, 31 * 24)
+    # compare_fuel_mix()
+    analyze_network(2022, 24)
