@@ -93,13 +93,13 @@ def build_params_units(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-            '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
-            + start
-            + '","end":"'
-            + end
-            + '","sort":[{"column":"period","direction":"desc"}],"offset":'
-            + str(offset)
-            + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
+        '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
+        + start
+        + '","end":"'
+        + end
+        + '","sort":[{"column":"period","direction":"desc"}],"offset":'
+        + str(offset)
+        + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
     )
 
 
@@ -111,13 +111,13 @@ def build_params_fuels(year: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-            '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
-            + year
-            + '-01", "end": "'
-            + year
-            + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-            + str(offset)
-            + ', "length": 5000 }'
+        '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
+        + year
+        + '-01", "end": "'
+        + year
+        + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+        + str(offset)
+        + ', "length": 5000 }'
     )
 
 
@@ -130,15 +130,15 @@ def build_params_generations(year: str, plant_ids: List[str], offset: int) -> st
     :return: x-params as a string
     """
     return (
-            '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
-            + '", "'.join(plant_ids)
-            + '" ] }, "start": "'
-            + year
-            + '-01", "end": "'
-            + year
-            + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-            + str(offset)
-            + ', "length": 5000 }'
+        '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
+        + '", "'.join(plant_ids)
+        + '" ] }, "start": "'
+        + year
+        + '-01", "end": "'
+        + year
+        + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+        + str(offset)
+        + ', "length": 5000 }'
     )
 
 
@@ -428,17 +428,18 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
             )
         else:
             if unit["technology"] in (
-                    "Solar Photovoltaic",
-                    "Onshore Wind Turbine",
-                    "Conventional Hydroelectric",
+                "Solar Photovoltaic",
+                "Onshore Wind Turbine",
+                "Conventional Hydroelectric",
             ):
                 all_caps.append(
-                    pd.Series(renewable_caps[unit["technology"]], name=unit_name,
-                              index=network.snapshots)
+                    pd.Series(
+                        renewable_caps[unit["technology"]],
+                        name=unit_name,
+                        index=network.snapshots,
+                    )
                 )
-                all_bids.append(
-                    pd.Series(-20, name=unit_name, index=network.snapshots)
-                )
+                all_bids.append(pd.Series(-20, name=unit_name, index=network.snapshots))
                 network.add(
                     "Generator",
                     name=unit_name,
@@ -495,15 +496,19 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
 
                     bids = []
 
-                    for month, snapshot_chunk in network.snapshots.to_series().groupby(pd.Grouper(freq='M')):
+                    for month, snapshot_chunk in network.snapshots.to_series().groupby(
+                        pd.Grouper(freq="M")
+                    ):
                         fuel_index = f"{month.year}-{month.month:02}"
                         try:
                             bid = (
-                                    (fuel_prices.loc[fuel_index, unit["energy_source_code"]]
-                                     * heat_rate) + TECHNOLOGY_VOM[unit["technology"]]
-                            )
+                                fuel_prices.loc[fuel_index, unit["energy_source_code"]]
+                                * heat_rate
+                            ) + TECHNOLOGY_VOM[unit["technology"]]
                         except KeyError:
-                            print(f"No Fuel Price For {unit['energy_source_code']} in {fuel_index}")
+                            print(
+                                f"No Fuel Price For {unit['energy_source_code']} in {fuel_index}"
+                            )
                             bid = 0
                         bids.extend([bid] * snapshot_chunk.size)
 
@@ -535,7 +540,9 @@ def analyze_network(year: int, n_shots: int):
     plt.legend(title="Fuel Type")
     plt.show()
 
-    network.storage_units_t.p.sum(axis=1).head(24 * 7).plot(title="Net Battery Charge", ylabel="Net Charge MWs")
+    network.storage_units_t.p.sum(axis=1).head(24 * 7).plot(
+        title="Net Battery Charge", ylabel="Net Charge MWs"
+    )
     plt.show()
 
     network.buses_t.marginal_price.plot(

@@ -37,7 +37,10 @@ def get_ercot_renewable_data(doc_id: int) -> Optional[DataFrame[ERCOTRenewableDa
     try:
         renewable_gen = pd.read_excel(
             io=f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}",
-            sheet_name=["Wind Data", "Solar Data"], usecols="A,G", names=["datetime", "utilization"], index_col=0
+            sheet_name=["Wind Data", "Solar Data"],
+            usecols="A,G",
+            names=["datetime", "utilization"],
+            index_col=0,
         )
     except ValueError:
         return None
@@ -51,18 +54,29 @@ def get_fuel_mix_data() -> DataFrame[ERCOTFuelMixData]:
     # check this for hour ending / hour beginning
     # should be hour ending
     # change how this points to certain files depending on the year
-    fuel_mix = pd.read_excel(io="https://www.ercot.com/files/docs/2022/02/08/IntGenbyFuel2022.xlsx", sheet_name=None)
+    fuel_mix = pd.read_excel(
+        io="https://www.ercot.com/files/docs/2022/02/08/IntGenbyFuel2022.xlsx",
+        sheet_name=None,
+    )
     total_data = []
     for month in list(fuel_mix.values())[-12:]:
         for date in month["Date"].unique():
             day_data = month[month["Date"] == date]
-            filtered_day_data = day_data.loc[:, ~day_data.columns.isin(["Date", "Settlement Type", "Total"])]
-            filtered_day_data = filtered_day_data.set_index("Fuel").T.reset_index(drop=True)
-            filtered_day_data = filtered_day_data.groupby(filtered_day_data.index // 4).sum()
-            filtered_day_data.index = date + pd.to_timedelta(filtered_day_data.index + 1, unit="H")
+            filtered_day_data = day_data.loc[
+                :, ~day_data.columns.isin(["Date", "Settlement Type", "Total"])
+            ]
+            filtered_day_data = filtered_day_data.set_index("Fuel").T.reset_index(
+                drop=True
+            )
+            filtered_day_data = filtered_day_data.groupby(
+                filtered_day_data.index // 4
+            ).sum()
+            filtered_day_data.index = date + pd.to_timedelta(
+                filtered_day_data.index + 1, unit="H"
+            )
             total_data.append(filtered_day_data.head(24))
     complete_data = pd.concat(total_data)
-    complete_data.index.names = ['hour_ending']
+    complete_data.index.names = ["hour_ending"]
     complete_data.columns = map(str.lower, complete_data.columns)
     complete_data.columns = complete_data.columns.str.replace("-", "", regex=True)
     # merge combined cycle and regular gas turbines
