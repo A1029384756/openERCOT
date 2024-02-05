@@ -20,13 +20,13 @@ def build_params_units(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-            '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
-            + start
-            + '","end":"'
-            + end
-            + '","sort":[{"column":"period","direction":"desc"}],"offset":'
-            + str(offset)
-            + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
+        '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
+        + start
+        + '","end":"'
+        + end
+        + '","sort":[{"column":"period","direction":"desc"}],"offset":'
+        + str(offset)
+        + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
     )
 
 
@@ -38,13 +38,13 @@ def build_params_fuels(year: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-            '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
-            + year
-            + '-01", "end": "'
-            + year
-            + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-            + str(offset)
-            + ', "length": 5000 }'
+        '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
+        + year
+        + '-01", "end": "'
+        + year
+        + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+        + str(offset)
+        + ', "length": 5000 }'
     )
 
 
@@ -57,15 +57,15 @@ def build_params_generations(year: str, plant_ids: List[str], offset: int) -> st
     :return: x-params as a string
     """
     return (
-            '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
-            + '", "'.join(plant_ids)
-            + '" ] }, "start": "'
-            + year
-            + '-01", "end": "'
-            + year
-            + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-            + str(offset)
-            + ', "length": 5000 }'
+        '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
+        + '", "'.join(plant_ids)
+        + '" ] }, "start": "'
+        + year
+        + '-01", "end": "'
+        + year
+        + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+        + str(offset)
+        + ', "length": 5000 }'
     )
 
 

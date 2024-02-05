@@ -267,9 +267,9 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
             )
         else:
             if unit["technology"] in (
-                    "Solar Photovoltaic",
-                    "Onshore Wind Turbine",
-                    "Conventional Hydroelectric",
+                "Solar Photovoltaic",
+                "Onshore Wind Turbine",
+                "Conventional Hydroelectric",
             ):
                 all_caps.append(
                     pd.Series(
@@ -336,14 +336,14 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
                     bids = []
 
                     for month, snapshot_chunk in network.snapshots.to_series().groupby(
-                            pd.Grouper(freq="M")
+                        pd.Grouper(freq="M")
                     ):
                         fuel_index = f"{month.year}-{month.month:02}"
                         try:
                             bid = (
-                                          fuel_prices.loc[fuel_index, unit["energy_source_code"]]
-                                          * heat_rate
-                                  ) + TECHNOLOGY_VOM[unit["technology"]]
+                                fuel_prices.loc[fuel_index, unit["energy_source_code"]]
+                                * heat_rate
+                            ) + TECHNOLOGY_VOM[unit["technology"]]
                         except KeyError:
                             print(
                                 f"No Fuel Price For {unit['energy_source_code']} in {fuel_index}"
