@@ -1,4 +1,5 @@
 import os
+from time import sleep
 from typing import List, Tuple
 
 import numpy as np
@@ -115,9 +116,15 @@ def get_eia_unit_data(year: int, last=False) -> pd.DataFrame:
             },
             params={"api_key": EIA_API_KEY},
         )
-        total = int(r.json()["response"]["total"])
-        data.extend(r.json()["response"]["data"])
-        offset += 5000
+        if r.status_code == 200:
+            total = int(r.json()["response"]["total"])
+            data.extend(r.json()["response"]["data"])
+            offset += 5000
+        elif r.status_code == 409:
+            print("Waiting 5 Seconds Before Next Request", r.json())
+            sleep(5)
+        else:
+            raise ConnectionError("Issue with request", r.json())
     total_data = pd.DataFrame(data)
     return total_data.astype({"plantid": pd.Int32Dtype()})
 
@@ -134,9 +141,15 @@ def get_fuel_costs(year: int) -> pd.DataFrame:
             headers={"x-params": build_params_fuels(str(year), offset)},
             params={"api_key": EIA_API_KEY},
         )
-        total = int(r.json()["response"]["total"])
-        data.extend(r.json()["response"]["data"])
-        offset += 5000
+        if r.status_code == 200:
+            total = int(r.json()["response"]["total"])
+            data.extend(r.json()["response"]["data"])
+            offset += 5000
+        elif r.status_code == 409:
+            print("Waiting 5 Seconds Before Next Request", r.json())
+            sleep(5)
+        else:
+            raise ConnectionError("Issue with request", r.json())
     costs = (
         pd.DataFrame(data)
         .replace(to_replace=0, value=np.nan)
@@ -164,7 +177,13 @@ def get_eia_unit_generation(year: int, plant_ids) -> pd.DataFrame:
             },
             params={"api_key": EIA_API_KEY},
         )
-        total = int(r.json()["response"]["total"])
-        data.extend(r.json()["response"]["data"])
-        offset += 5000
+        if r.status_code == 200:
+            total = int(r.json()["response"]["total"])
+            data.extend(r.json()["response"]["data"])
+            offset += 5000
+        elif r.status_code == 409:
+            print("Waiting 5 Seconds Before Next Request", r.json())
+            sleep(5)
+        else:
+            raise ConnectionError("Issue with request", r.json())
     return pd.DataFrame(data)
