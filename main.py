@@ -153,7 +153,9 @@ def build_generators(year) -> pd.DataFrame:
     try:
         county_to_zone = pd.read_csv("zone_to_county.csv", index_col="county")
     except FileNotFoundError:
-        raise RuntimeError("Cannot run without zone_to_county.csv, please make sure it is available on the path")
+        raise RuntimeError(
+            "Cannot run without zone_to_county.csv, please make sure it is available on the path"
+        )
     units = units.merge(county_to_zone, how="left", on="county")
     heatrates = build_heatrates_plant(year, units["plantid"].unique().astype(str))
     units = units.merge(
@@ -171,7 +173,8 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
         assumptions = pd.read_csv("technology_assumptions.csv", index_col="technology")
     except FileNotFoundError:
         raise RuntimeError(
-            "Cannot run without technology_assumptions.csv, please make sure it is available on the path")
+            "Cannot run without technology_assumptions.csv, please make sure it is available on the path"
+        )
 
     network = pypsa.Network()
     # this needs to be cached
@@ -243,14 +246,14 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
                 p_nom=unit["nameplate-capacity-mw"],
                 carrier=assumptions.loc[unit["technology"], "carrier"],
                 # assumes round trip should be around .81
-                efficiency_store=.9,
-                efficiency_dispatch=.9
+                efficiency_store=0.9,
+                efficiency_dispatch=0.9,
             )
         else:
             if unit["technology"] in (
-                    "Solar Photovoltaic",
-                    "Onshore Wind Turbine",
-                    "Conventional Hydroelectric",
+                "Solar Photovoltaic",
+                "Onshore Wind Turbine",
+                "Conventional Hydroelectric",
             ):
                 all_caps.append(
                     pd.Series(
@@ -305,7 +308,7 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
                         # p_min_pu=min_output,
                         type=unit["technology"],
                         # ramp_limit_up=ramp_rate,
-                        committable=committable
+                        committable=committable,
                     )
 
                     heat_rate = (
@@ -317,12 +320,14 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
                     bids = []
 
                     for month, snapshot_chunk in network.snapshots.to_series().groupby(
-                            pd.Grouper(freq="M")
+                        pd.Grouper(freq="M")
                     ):
                         fuel_index = f"{month.year}-{month.month:02}"
                         try:
-                            bid = (fuel_prices.loc[fuel_index, unit["energy_source_code"]]
-                                   * heat_rate) + float(assumptions.loc[unit["technology"], "vom"])
+                            bid = (
+                                fuel_prices.loc[fuel_index, unit["energy_source_code"]]
+                                * heat_rate
+                            ) + float(assumptions.loc[unit["technology"], "vom"])
                         except KeyError:
                             print(
                                 f"No Fuel Price For {unit['energy_source_code']} in {fuel_index}"
