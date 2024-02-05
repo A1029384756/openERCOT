@@ -49,38 +49,6 @@ TRANSMISSION_LINES = [
     ("NORTH CENTRAL", "WEST", 3000),
 ]
 
-# allows the comparison of ERCOT fuel mix and simulation output
-TECHNOLOGY_MAP = {
-    "Wood/Wood Waste Biomass": "biomass",
-    "Petroleum Liquids": "other",
-    "Petroleum Coke": "coal",
-    "Other Waste Biomass": "other",
-    "Natural Gas Fired Combined Cycle": "gas",
-    "Natural Gas Fired Combustion Turbine": "gas",
-    "Natural Gas Internal Combustion Engine": "gas",
-    "Natural Gas Steam Turbine": "gas",
-    "Landfill Gas": "gas",
-    "Conventional Steam Coal": "coal",
-    "All Other": "other",
-    "Solar Photovoltaic": "solar",
-    "Onshore Wind Turbine": "wind",
-    "Conventional Hydroelectric": "hydro",
-}
-
-TECHNOLOGY_VOM = {
-    "Wood/Wood Waste Biomass": 5.44,
-    "Petroleum Liquids": 5.29,
-    "Petroleum Coke": 5.06,
-    "Other Waste Biomass": 5.44,
-    "Natural Gas Fired Combined Cycle": 2.87,
-    "Natural Gas Fired Combustion Turbine": 5.06,
-    "Natural Gas Internal Combustion Engine": 6.40,
-    "Natural Gas Steam Turbine": 2.10,
-    "Landfill Gas": 5.29,
-    "Conventional Steam Coal": 5.06,
-    "All Other": 6.4,
-}
-
 
 def get_renewable_gen(n_shots: pd.Series) -> dict[str, pd.Series]:
     """
@@ -182,7 +150,10 @@ def build_heatrates_plant(year, plant_ids) -> pd.DataFrame:
 
 def build_generators(year) -> pd.DataFrame:
     units = get_eia_unit_data(year, last=True)
-    county_to_zone = pd.read_csv("zone_to_county.csv", index_col="county")
+    try:
+        county_to_zone = pd.read_csv("zone_to_county.csv", index_col="county")
+    except FileNotFoundError:
+        raise RuntimeError("Cannot run without zone_to_county.csv, please make sure it is available on the path")
     units = units.merge(county_to_zone, how="left", on="county")
     heatrates = build_heatrates_plant(year, units["plantid"].unique().astype(str))
     units = units.merge(
@@ -194,7 +165,14 @@ def build_generators(year) -> pd.DataFrame:
     return units
 
 
-def build_network(year: int, n_shots: int) -> pypsa.Network:
+def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.Network:
+    # load local CSV files
+    try:
+        assumptions = pd.read_csv("technology_assumptions.csv", index_col="technology")
+    except FileNotFoundError:
+        raise RuntimeError(
+            "Cannot run without technology_assumptions.csv, please make sure it is available on the path")
+
     network = pypsa.Network()
     # this needs to be cached
     generators = build_generators(year)
@@ -263,13 +241,16 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
                 bus=unit["weather_zone"],
                 type="Battery",
                 p_nom=unit["nameplate-capacity-mw"],
-                carrier="mwh",
+                carrier=assumptions.loc[unit["technology"], "carrier"],
+                # assumes round trip should be around .81
+                efficiency_store=.9,
+                efficiency_dispatch=.9
             )
         else:
             if unit["technology"] in (
-                "Solar Photovoltaic",
-                "Onshore Wind Turbine",
-                "Conventional Hydroelectric",
+                    "Solar Photovoltaic",
+                    "Onshore Wind Turbine",
+                    "Conventional Hydroelectric",
             ):
                 all_caps.append(
                     pd.Series(
@@ -284,7 +265,7 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
                     name=unit_name,
                     bus=unit["weather_zone"],
                     p_nom=unit["nameplate-capacity-mw"],
-                    carrier=TECHNOLOGY_MAP[unit["technology"]],
+                    carrier=assumptions.loc[unit["technology"], "carrier"],
                     type=unit["technology"],
                 )
             else:
@@ -298,7 +279,7 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
                         name=unit_name,
                         bus=unit["weather_zone"],
                         p_nom=unit["nameplate-capacity-mw"],
-                        carrier="nuclear",
+                        carrier=assumptions.loc[unit["technology"], "carrier"],
                         type=unit["technology"],
                     )
                 elif "Landfill Gas" in unit["technology"]:
@@ -311,7 +292,7 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
                         name=unit_name,
                         bus=unit["weather_zone"],
                         p_nom=unit["nameplate-capacity-mw"],
-                        carrier="other",
+                        carrier=assumptions.loc[unit["technology"], "carrier"],
                         type=unit["technology"],
                     )
                 else:
@@ -320,11 +301,11 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
                         name=unit_name,
                         bus=unit["weather_zone"],
                         p_nom=unit["nameplate-capacity-mw"],
-                        carrier=TECHNOLOGY_MAP[unit["technology"]],
+                        carrier=assumptions.loc[unit["technology"], "carrier"],
                         # p_min_pu=min_output,
                         type=unit["technology"],
                         # ramp_limit_up=ramp_rate,
-                        # committable=True
+                        committable=committable
                     )
 
                     heat_rate = (
@@ -336,14 +317,12 @@ def build_network(year: int, n_shots: int) -> pypsa.Network:
                     bids = []
 
                     for month, snapshot_chunk in network.snapshots.to_series().groupby(
-                        pd.Grouper(freq="M")
+                            pd.Grouper(freq="M")
                     ):
                         fuel_index = f"{month.year}-{month.month:02}"
                         try:
-                            bid = (
-                                fuel_prices.loc[fuel_index, unit["energy_source_code"]]
-                                * heat_rate
-                            ) + TECHNOLOGY_VOM[unit["technology"]]
+                            bid = (fuel_prices.loc[fuel_index, unit["energy_source_code"]]
+                                   * heat_rate) + float(assumptions.loc[unit["technology"], "vom"])
                         except KeyError:
                             print(
                                 f"No Fuel Price For {unit['energy_source_code']} in {fuel_index}"
@@ -404,4 +383,4 @@ def compare_fuel_mix():
 
 if __name__ == "__main__":
     # compare_fuel_mix()
-    analyze_network(2022, 24)
+    analyze_network(2022, 24 * 31)
