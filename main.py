@@ -1,5 +1,7 @@
 import math
 import os
+from typing import Hashable
+
 import pypsa
 import pandas as pd
 import requests
@@ -15,17 +17,6 @@ load_dotenv()
 
 EIA_API_KEY = os.getenv("EIA_API_KEY")
 CEMS_API_KEY = os.getenv("CEMS_API_KEY")
-
-WEATHER_ZONES = {
-    "FAR WEST": (32.000507, -102.077408),
-    "NORTH": (33.930828, -98.484879),
-    "WEST": (32.448734, -99.733147),
-    "NORTH CENTRAL": (32.897480, -97.040443),
-    "EAST": (32.349998, -95.300003),
-    "SOUTH CENTRAL": (29.424349, -98.491142),
-    "SOUTH": (27.80058, -97.39638),
-    "COAST": (29.749907, -95.358421),
-}
 
 ZONE_NAME_MAP = {
     "FWEST": "FAR WEST",
@@ -167,6 +158,13 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
             "Cannot run without transmission_lines.csv, please make sure it is available on the path"
         )
 
+    try:
+        zones = pd.read_csv("weather_zones.csv", index_col="ZONE")
+    except FileNotFoundError:
+        raise RuntimeError(
+            "Cannot run without weather_zones.csv, please make sure it is available on the path"
+        )
+
     network = pypsa.Network()
     # this needs to be cached
     generators = build_generators(year)
@@ -206,10 +204,10 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
     # this is fast to generate but can be cached
     fuel_prices = get_fuel_costs(year)
 
-    for zone, coord in WEATHER_ZONES.items():
-        network.add("Bus", x=coord[1], y=coord[0], v_nom=345000, name=zone)
+    for zone, (lat, lon) in zones.iterrows():
+        network.add("Bus", x=lon, y=lat, v_nom=345000, name=zone)
 
-    for load in WEATHER_ZONES.keys():
+    for load in zones.index:
         network.add(
             "Load",
             name=load + "L",
