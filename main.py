@@ -305,9 +305,11 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
                         bus=unit["weather_zone"],
                         p_nom=unit["nameplate-capacity-mw"],
                         carrier=assumptions.loc[unit["technology"], "carrier"],
-                        # p_min_pu=min_output,
                         type=unit["technology"],
-                        # ramp_limit_up=ramp_rate,
+                        ramp_limit_up=float(assumptions.loc[unit["technology"], "ramp_up_limit"]),
+                        ramp_limit_down=float(assumptions.loc[unit["technology"], "ramp_down_limit"]),
+                        start_up_cost=float(assumptions.loc[unit["technology"], "start_up_cost"]),
+                        min_up_time=float(assumptions.loc[unit["technology"], "min_up_time"]),
                         committable=committable,
                     )
 
@@ -350,13 +352,24 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
     return network
 
 
-def analyze_network(year: int, n_shots: int):
-    network = build_network(year, n_shots)
-    network.optimize(solver_name="highs")
+def analyze_network(year: int, n_shots: int, committable: bool = False, set_size: int = 7 * 24, overlap: int = 2):
+    network = build_network(year, n_shots, committable)
+    # simulate the chunks
+    for i in range(n_shots // set_size):
+        chunk = network.snapshots[i * set_size: (i + 1) * set_size + overlap]
+        print(f"Simulating {chunk[0]} to {chunk[-1]}")
+        network.optimize(chunk, solver_name="highs")
+
+    if n_shots % set_size != 0:
+        chunk = network.snapshots[n_shots % set_size:]
+        print(f"Simulating {chunk[0]} to {chunk[-1]}")
+        network.optimize(chunk, solver_name="highs")
+
     grouped = network.generators_t.p.T.groupby(by=network.generators["carrier"]).sum().T
     grouped["storage"] = network.storage_units_t.p.sum(axis=1).clip(lower=0)
     grouped.plot.area(
-        xlabel="Hour", ylabel="Load (MW)", title="ERCOT Dispatch on January 1st 2022"
+        xlabel="Hour", ylabel="Load (MW)",
+        title=f"ERCOT Dispatch from {network.snapshots.min():%H:00 %m-%d-%Y} to {network.snapshots.max():%H:00 %m-%d-%Y}"
     )
 
     grouped.to_csv("2022_jan_sim_plants.csv")
@@ -368,14 +381,17 @@ def analyze_network(year: int, n_shots: int):
     )
     plt.show()
 
-    network.buses_t.marginal_price.plot(
-        xlabel="Date", ylabel="Price ($/MWH)", title="Zonal Price for ERCOT Dispatch"
-    )
-    plt.show()
+    if not committable:
+        network.buses_t.marginal_price.plot(
+            xlabel="Date", ylabel="Price ($/MWH)", title="Zonal Price for ERCOT Dispatch"
+        )
+        plt.show()
+    else:
+        print("No price output when the network has committable elements")
 
 
 def compare_fuel_mix():
-    actual = pd.read_csv("2022_fuel_mix.csv", index_col="hour_ending").head(31 * 24)
+    actual = pd.read_csv("2022_fuel_mix.csv", index_col="hour_ending").head(3 * 24)
     simulated = pd.read_csv("2022_jan_sim_plants.csv", index_col="snapshot")
     sum_merged = pd.concat(
         [actual.sum(axis=1), simulated.sum(axis=1)], join="inner", axis=1
@@ -388,4 +404,4 @@ def compare_fuel_mix():
 
 if __name__ == "__main__":
     # compare_fuel_mix()
-    analyze_network(2022, 24 * 31)
+    analyze_network(2022, 31 * 24, committable=False)
