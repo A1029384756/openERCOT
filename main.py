@@ -306,10 +306,18 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
                         p_nom=unit["nameplate-capacity-mw"],
                         carrier=assumptions.loc[unit["technology"], "carrier"],
                         type=unit["technology"],
-                        ramp_limit_up=float(assumptions.loc[unit["technology"], "ramp_up_limit"]),
-                        ramp_limit_down=float(assumptions.loc[unit["technology"], "ramp_down_limit"]),
-                        start_up_cost=float(assumptions.loc[unit["technology"], "start_up_cost"]),
-                        min_up_time=float(assumptions.loc[unit["technology"], "min_up_time"]),
+                        ramp_limit_up=float(
+                            assumptions.loc[unit["technology"], "ramp_up_limit"]
+                        ),
+                        ramp_limit_down=float(
+                            assumptions.loc[unit["technology"], "ramp_down_limit"]
+                        ),
+                        start_up_cost=float(
+                            assumptions.loc[unit["technology"], "start_up_cost"]
+                        ),
+                        min_up_time=float(
+                            assumptions.loc[unit["technology"], "min_up_time"]
+                        ),
                         committable=committable,
                     )
 
@@ -352,24 +360,31 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
     return network
 
 
-def analyze_network(year: int, n_shots: int, committable: bool = False, set_size: int = 7 * 24, overlap: int = 2):
+def analyze_network(
+    year: int,
+    n_shots: int,
+    committable: bool = False,
+    set_size: int = 7 * 24,
+    overlap: int = 2,
+):
     network = build_network(year, n_shots, committable)
     # simulate the chunks
     for i in range(n_shots // set_size):
-        chunk = network.snapshots[i * set_size: (i + 1) * set_size + overlap]
+        chunk = network.snapshots[i * set_size : (i + 1) * set_size + overlap]
         print(f"Simulating {chunk[0]} to {chunk[-1]}")
         network.optimize(chunk, solver_name="highs")
 
     if n_shots % set_size != 0:
-        chunk = network.snapshots[n_shots % set_size:]
+        chunk = network.snapshots[n_shots % set_size :]
         print(f"Simulating {chunk[0]} to {chunk[-1]}")
         network.optimize(chunk, solver_name="highs")
 
     grouped = network.generators_t.p.T.groupby(by=network.generators["carrier"]).sum().T
     grouped["storage"] = network.storage_units_t.p.sum(axis=1).clip(lower=0)
     grouped.plot.area(
-        xlabel="Hour", ylabel="Load (MW)",
-        title=f"ERCOT Dispatch from {network.snapshots.min():%H:00 %m-%d-%Y} to {network.snapshots.max():%H:00 %m-%d-%Y}"
+        xlabel="Hour",
+        ylabel="Load (MW)",
+        title=f"ERCOT Dispatch from {network.snapshots.min():%H:00 %m-%d-%Y} to {network.snapshots.max():%H:00 %m-%d-%Y}",
     )
 
     grouped.to_csv("2022_jan_sim_plants.csv")
@@ -383,7 +398,9 @@ def analyze_network(year: int, n_shots: int, committable: bool = False, set_size
 
     if not committable:
         network.buses_t.marginal_price.plot(
-            xlabel="Date", ylabel="Price ($/MWH)", title="Zonal Price for ERCOT Dispatch"
+            xlabel="Date",
+            ylabel="Price ($/MWH)",
+            title="Zonal Price for ERCOT Dispatch",
         )
         plt.show()
     else:
