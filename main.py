@@ -33,22 +33,6 @@ ZONE_NAME_MAP = {
     "SCENT": "SOUTH CENTRAL",
 }
 
-TRANSMISSION_LINES = [
-    ("SOUTH", "SOUTH CENTRAL", 2000),
-    ("SOUTH", "COAST", 700),
-    ("SOUTH CENTRAL", "COAST", 2000),
-    ("EAST", "COAST", 2000),
-    ("SOUTH CENTRAL", "NORTH CENTRAL", 3000),
-    ("NORTH CENTRAL", "EAST", 4000),
-    ("NORTH", "NORTH CENTRAL", 3000),
-    ("NORTH", "WEST", 3000),
-    ("FAR WEST", "WEST", 2000),
-    ("FAR WEST", "SOUTH CENTRAL", 1500),
-    ("SOUTH CENTRAL", "WEST", 1000),
-    ("EAST", "SOUTH CENTRAL", 2000),
-    ("NORTH CENTRAL", "WEST", 3000),
-]
-
 
 def get_renewable_gen(n_shots: pd.Series) -> dict[str, pd.Series]:
     """
@@ -176,6 +160,13 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
             "Cannot run without technology_assumptions.csv, please make sure it is available on the path"
         )
 
+    try:
+        lines = pd.read_csv("transmission_lines.csv")
+    except FileNotFoundError:
+        raise RuntimeError(
+            "Cannot run without transmission_lines.csv, please make sure it is available on the path"
+        )
+
     network = pypsa.Network()
     # this needs to be cached
     generators = build_generators(year)
@@ -226,7 +217,7 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
             p_set=load_data[load].head(n_shots).values,
         )
 
-    for START, END, TTC in TRANSMISSION_LINES:
+    for _, (START, END, TTC) in lines.iterrows():
         network.add(
             "Link", name=START + "-" + END, bus0=START, bus1=END, p_min_pu=-1, p_nom=TTC
         )
