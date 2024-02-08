@@ -16,7 +16,6 @@ EIA_API_KEY = os.getenv("EIA_API_KEY")
 CEMS_API_KEY = os.getenv("CEMS_API_KEY")
 
 
-
 def build_crosswalk() -> pd.DataFrame:
     cross_url = "https://raw.githubusercontent.com/USEPA/camd-eia-crosswalk/master/epa_eia_crosswalk.csv"
     crosswalk = pd.read_csv(

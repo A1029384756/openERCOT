@@ -56,8 +56,8 @@ def get_fuel_mix_data() -> DataFrame[ERCOTFuelMixData]:
         for date in month["Date"].unique():
             day_data = month[month["Date"] == date]
             filtered_day_data = day_data.loc[
-                                :, ~day_data.columns.isin(["Date", "Settlement Type", "Total"])
-                                ]
+                :, ~day_data.columns.isin(["Date", "Settlement Type", "Total"])
+            ]
             filtered_day_data = filtered_day_data.set_index("Fuel").T.reset_index(
                 drop=True
             )
@@ -129,7 +129,9 @@ def get_ercot_renewable_data(snapshots) -> DataFrame[ERCOTRenewableData]:
 
     hydro_gen = get_fuel_mix_data()
     hydro_gen.index = pd.to_datetime(hydro_gen.index)
-    renew_df["Conventional Hydroelectric"] = hydro_gen["hydro"] / hydro_gen["hydro"].max()
+    renew_df["Conventional Hydroelectric"] = (
+        hydro_gen["hydro"] / hydro_gen["hydro"].max()
+    )
     final_df: DataFrame[ERCOTRenewableData] = renew_df
     return final_df
 
