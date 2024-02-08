@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 
 from eia_data import get_eia_unit_generation, get_eia_unit_data, get_fuel_costs
-from ercot_data import get_fuel_mix_data, get_eroct_load_data
+from ercot_data import get_fuel_mix_data, get_ercot_load_data
 
 load_dotenv()
 
@@ -40,7 +40,7 @@ def get_renewable_gen(n_shots: pd.Series) -> dict[str, pd.Series]:
     # refactor this to be less brittle
     # cache this
     # only works for 2022
-    hydro_gen = get_fuel_mix_data()
+    hydro_gen = pd.read_pickle("./downloads/fuel_mix_data.pkl")
     hydro_gen.index = pd.to_datetime(hydro_gen.index)
     hydro_gen = hydro_gen[hydro_gen.index.isin(n_shots)]
 
@@ -117,7 +117,9 @@ def build_heatrates_plant(year, plant_ids) -> pd.DataFrame:
 def build_generators(year) -> pd.DataFrame:
     units = get_eia_unit_data(year, last=True)
     try:
-        county_to_zone = pd.read_csv("zone_to_county.csv", index_col="county")
+        county_to_zone = pd.read_csv(
+            "./resources/zone_to_county.csv", index_col="county"
+        )
     except FileNotFoundError:
         raise RuntimeError(
             "Cannot run without zone_to_county.csv, please make sure it is available on the path"
@@ -136,21 +138,23 @@ def build_generators(year) -> pd.DataFrame:
 def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.Network:
     # load local CSV files
     try:
-        assumptions = pd.read_csv("technology_assumptions.csv", index_col="technology")
+        assumptions = pd.read_csv(
+            "./resources/technology_assumptions.csv", index_col="technology"
+        )
     except FileNotFoundError:
         raise RuntimeError(
             "Cannot run without technology_assumptions.csv, please make sure it is available on the path"
         )
 
     try:
-        lines = pd.read_csv("transmission_lines.csv")
+        lines = pd.read_csv("./resources/transmission_lines.csv")
     except FileNotFoundError:
         raise RuntimeError(
             "Cannot run without transmission_lines.csv, please make sure it is available on the path"
         )
 
     try:
-        zones = pd.read_csv("weather_zones.csv", index_col="ZONE")
+        zones = pd.read_csv("./resources/weather_zones.csv", index_col="ZONE")
     except FileNotFoundError:
         raise RuntimeError(
             "Cannot run without weather_zones.csv, please make sure it is available on the path"
@@ -164,7 +168,7 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
         generators["nameplate-capacity-mw"], errors="coerce"
     )
 
-    load_data = get_eroct_load_data(year)
+    load_data = pd.read_pickle("./downloads/ercot_data.pkl")
 
     network.snapshots = load_data.head(n_shots).index
     renewable_caps = get_renewable_gen(network.snapshots)

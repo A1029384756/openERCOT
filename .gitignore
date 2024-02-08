@@ -1,4 +1,7 @@
 .idea/
 .ruff_cache/
+.snakemake/
+downloads/
+
 .env
 result

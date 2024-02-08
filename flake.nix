@@ -12,8 +12,8 @@
         pkgs = import nixpkgs { inherit system; };
 
         commonArgs = with pkgs.python311Packages; [
-          numpy
           pandas
+          numpy
           python-dotenv
           matplotlib
           requests
@@ -130,7 +130,10 @@
       in
       with pkgs;
       {
-        packages.default = pyEnv;
+        packages = {
+          inherit pyEnv ercot_data;
+          default = pyEnv;
+        };
         devShells = {
           default = mkShell {
             buildInputs = [

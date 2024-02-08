@@ -101,7 +101,7 @@ def download_all_ercot_renewable_data():
         print(get_ercot_renewable_data(renew_id))
 
 
-def get_eroct_load_data(year):
+def get_ercot_load_data(year) -> pd.DataFrame:
     url = requests.get(
         "https://www.ercot.com/files/docs/2022/02/08/Native_Load_2022.zip"
     )
@@ -124,4 +124,7 @@ def get_eroct_load_data(year):
 
 
 if __name__ == "__main__":
-    df = get_eroct_load_data(2022)
+    df = get_ercot_load_data(2022)
+    df.to_pickle("downloads/ercot_data.pkl")
+    df = get_fuel_mix_data()
+    df.to_pickle("downloads/fuel_mix_data.pkl")
