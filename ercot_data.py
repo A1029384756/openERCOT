@@ -1,10 +1,18 @@
 import datetime
+from io import BytesIO
 from typing import List, Optional
+from zipfile import ZipFile
 
 import pandas as pd
 import pandera as pa
 from pandera.typing import Series, DataFrame, Index
 import requests
+
+ZONE_NAME_MAP = {
+    "FWEST": "FAR WEST",
+    "NCENT": "NORTH CENTRAL",
+    "SCENT": "SOUTH CENTRAL",
+}
 
 
 class ERCOTRenewableData(pa.DataFrameModel):
@@ -63,8 +71,8 @@ def get_fuel_mix_data() -> DataFrame[ERCOTFuelMixData]:
         for date in month["Date"].unique():
             day_data = month[month["Date"] == date]
             filtered_day_data = day_data.loc[
-                :, ~day_data.columns.isin(["Date", "Settlement Type", "Total"])
-            ]
+                                :, ~day_data.columns.isin(["Date", "Settlement Type", "Total"])
+                                ]
             filtered_day_data = filtered_day_data.set_index("Fuel").T.reset_index(
                 drop=True
             )
@@ -93,6 +101,27 @@ def download_all_ercot_renewable_data():
         print(get_ercot_renewable_data(renew_id))
 
 
+def get_eroct_load_data(year):
+    url = requests.get(
+        "https://www.ercot.com/files/docs/2022/02/08/Native_Load_2022.zip"
+    )
+    load_data = pd.read_excel(
+        ZipFile(BytesIO(url.content)).open("Native_Load_2022.xlsx")
+    )
+    load_data.rename(mapper=ZONE_NAME_MAP, axis=1, inplace=True)
+    # drop daylight savings hour
+    load_data = load_data[~load_data["Hour Ending"].str.contains("DST", na=False)]
+    # shift HE 24 to HE 0 the next day
+    load_data["Hour Ending"] = load_data["Hour Ending"].str.replace("24:00", "00:00")
+    load_data["Hour Ending"] = pd.to_datetime(load_data["Hour Ending"])
+    load_data.set_index("Hour Ending", inplace=True)
+    load_data.index = load_data.index.map(
+        lambda x: x + pd.Timedelta(1, "D") if x.hour == 0 else x
+    )
+    # fix any missing holes
+    load_data = load_data.resample("H").mean().interpolate()
+    return load_data
+
+
 if __name__ == "__main__":
-    data = get_fuel_mix_data()
-    data.to_csv("2022_fuel_mix.csv")
+    df = get_eroct_load_data(2022)

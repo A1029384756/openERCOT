@@ -1,28 +1,19 @@
 import math
 import os
-from typing import Hashable
 
 import pypsa
 import pandas as pd
 import requests
 from dotenv import load_dotenv
 from matplotlib import pyplot as plt
-from io import BytesIO
-from zipfile import ZipFile
 
 from eia_data import get_eia_unit_generation, get_eia_unit_data, get_fuel_costs
-from ercot_data import get_fuel_mix_data
+from ercot_data import get_fuel_mix_data, get_eroct_load_data
 
 load_dotenv()
 
 EIA_API_KEY = os.getenv("EIA_API_KEY")
 CEMS_API_KEY = os.getenv("CEMS_API_KEY")
-
-ZONE_NAME_MAP = {
-    "FWEST": "FAR WEST",
-    "NCENT": "NORTH CENTRAL",
-    "SCENT": "SOUTH CENTRAL",
-}
 
 
 def get_renewable_gen(n_shots: pd.Series) -> dict[str, pd.Series]:
@@ -172,22 +163,8 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
     generators["nameplate-capacity-mw"] = pd.to_numeric(
         generators["nameplate-capacity-mw"], errors="coerce"
     )
-    url = requests.get(
-        "https://www.ercot.com/files/docs/2022/02/08/Native_Load_2022.zip"
-    )
-    load_data = pd.read_excel(
-        ZipFile(BytesIO(url.content)).open("Native_Load_2022.xlsx")
-    )
-    load_data.rename(mapper=ZONE_NAME_MAP, axis=1, inplace=True)
-    # drop daylight savings hour
-    load_data = load_data[~load_data["Hour Ending"].str.contains("DST", na=False)]
-    # shift HE 24 to HE 0 the next day
-    load_data["Hour Ending"] = load_data["Hour Ending"].str.replace("24:00", "00:00")
-    load_data["Hour Ending"] = pd.to_datetime(load_data["Hour Ending"])
-    load_data.set_index("Hour Ending", inplace=True)
-    load_data.index = load_data.index.map(
-        lambda x: x + pd.Timedelta(1, "D") if x.hour == 0 else x
-    )
+
+    load_data = get_eroct_load_data(year)
 
     network.snapshots = load_data.head(n_shots).index
     renewable_caps = get_renewable_gen(network.snapshots)
@@ -240,9 +217,9 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
             )
         else:
             if unit["technology"] in (
-                "Solar Photovoltaic",
-                "Onshore Wind Turbine",
-                "Conventional Hydroelectric",
+                    "Solar Photovoltaic",
+                    "Onshore Wind Turbine",
+                    "Conventional Hydroelectric",
             ):
                 all_caps.append(
                     pd.Series(
@@ -319,14 +296,14 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
                     bids = []
 
                     for month, snapshot_chunk in network.snapshots.to_series().groupby(
-                        pd.Grouper(freq="M")
+                            pd.Grouper(freq="M")
                     ):
                         fuel_index = f"{month.year}-{month.month:02}"
                         try:
                             bid = (
-                                fuel_prices.loc[fuel_index, unit["energy_source_code"]]
-                                * heat_rate
-                            ) + float(assumptions.loc[unit["technology"], "vom"])
+                                          fuel_prices.loc[fuel_index, unit["energy_source_code"]]
+                                          * heat_rate
+                                  ) + float(assumptions.loc[unit["technology"], "vom"])
                         except KeyError:
                             print(
                                 f"No Fuel Price For {unit['energy_source_code']} in {fuel_index}"
@@ -350,21 +327,22 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
 
 
 def analyze_network(
-    year: int,
-    n_shots: int,
-    committable: bool = False,
-    set_size: int = 7 * 24,
-    overlap: int = 2,
+        year: int,
+        n_shots: int,
+        committable: bool = False,
+        set_size: int = 7 * 24,
+        overlap: int = 2,
 ):
     network = build_network(year, n_shots, committable)
     # simulate the chunks
     for i in range(n_shots // set_size):
-        chunk = network.snapshots[i * set_size : (i + 1) * set_size + overlap]
+        chunk = network.snapshots[i * set_size: (i + 1) * set_size + overlap]
         print(f"Simulating {chunk[0]} to {chunk[-1]}")
         network.optimize(chunk, solver_name="highs")
 
+    # simulate any extra snapshots not caught in chunks
     if n_shots % set_size != 0:
-        chunk = network.snapshots[n_shots % set_size :]
+        chunk = network.snapshots[n_shots % set_size:]
         print(f"Simulating {chunk[0]} to {chunk[-1]}")
         network.optimize(chunk, solver_name="highs")
 
@@ -410,4 +388,4 @@ def compare_fuel_mix():
 
 if __name__ == "__main__":
     # compare_fuel_mix()
-    analyze_network(2022, 31 * 24, committable=False)
+    analyze_network(2022, 3 * 24, committable=False, set_size=3 * 24, overlap=0)
