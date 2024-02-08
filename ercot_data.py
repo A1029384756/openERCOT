@@ -15,11 +15,6 @@ ZONE_NAME_MAP = {
 }
 
 
-class ERCOTRenewableData(pa.DataFrameModel):
-    wind_utilization: Series[float] = pa.Field(ge=0, le=1)
-    solar_utilization: Series[float] = pa.Field(ge=0, le=1)
-
-
 class ERCOTFuelMixData(pa.DataFrameModel):
     hour_ending: Index[datetime.datetime]
     biomass: float
@@ -33,29 +28,19 @@ class ERCOTFuelMixData(pa.DataFrameModel):
     wind: float
 
 
+class ERCOTRenewableData(pa.DataFrameModel):
+    snapshot: Index[datetime.datetime]
+    solar: Series[float] = pa.Field(ge=0, le=1, alias="Solar Photovoltaic")
+    wind: Series[float] = pa.Field(ge=0, le=1, alias="Onshore Wind Turbine")
+    hydro: Series[float] = pa.Field(ge=0, le=1, alias="Conventional Hydroelectric")
+
+
 def get_mis_doc_ids(report_type_id: int) -> List[int]:
     url = "https://www.ercot.com/misapp/servlets/IceDocListJsonWS"
     r = requests.get(url, params={"reportTypeId": report_type_id})
     docs = r.json()["ListDocsByRptTypeRes"]["DocumentList"]
     doc_ids = [int(doc["Document"]["DocID"]) for doc in docs]
     return doc_ids
-
-
-def get_ercot_renewable_data(doc_id: int) -> Optional[DataFrame[ERCOTRenewableData]]:
-    try:
-        renewable_gen = pd.read_excel(
-            io=f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}",
-            sheet_name=["Wind Data", "Solar Data"],
-            usecols="A,G",
-            names=["datetime", "utilization"],
-            index_col=0,
-        )
-    except ValueError:
-        return None
-    wind = renewable_gen["Wind Data"].add_prefix("wind_")
-    solar = renewable_gen["Solar Data"].add_prefix("solar_")
-    df: DataFrame[ERCOTRenewableData] = pd.concat([wind, solar], axis=1) / 100
-    return df
 
 
 def get_fuel_mix_data() -> DataFrame[ERCOTFuelMixData]:
@@ -71,8 +56,8 @@ def get_fuel_mix_data() -> DataFrame[ERCOTFuelMixData]:
         for date in month["Date"].unique():
             day_data = month[month["Date"] == date]
             filtered_day_data = day_data.loc[
-                :, ~day_data.columns.isin(["Date", "Settlement Type", "Total"])
-            ]
+                                :, ~day_data.columns.isin(["Date", "Settlement Type", "Total"])
+                                ]
             filtered_day_data = filtered_day_data.set_index("Fuel").T.reset_index(
                 drop=True
             )
@@ -121,6 +106,32 @@ def get_eroct_load_data(year):
     # fix any missing holes
     load_data = load_data.resample("H").mean().interpolate()
     return load_data
+
+
+def get_ercot_renewable_data(snapshots) -> DataFrame[ERCOTRenewableData]:
+    renewable_gen = pd.read_excel(
+        "https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId=890277261",
+        sheet_name=["Wind Data", "Solar Data"],
+    )
+    wind = renewable_gen["Wind Data"]
+    wind = wind.drop_duplicates("Time (Hour-Ending)").set_index("Time (Hour-Ending)")
+    wind.index = pd.to_datetime(wind.index)
+
+    solar = renewable_gen["Solar Data"]
+    solar = solar.drop_duplicates(subset="Time (Hour-Ending)").set_index(
+        "Time (Hour-Ending)"
+    )
+    solar.index = pd.to_datetime(solar.index)
+
+    renew_df = pd.DataFrame(index=snapshots)
+    renew_df["Solar Photovoltaic"] = solar["Solar Output, % of Installed"] / 100
+    renew_df["Onshore Wind Turbine"] = wind["Wind Output, % of Installed"] / 100
+
+    hydro_gen = get_fuel_mix_data()
+    hydro_gen.index = pd.to_datetime(hydro_gen.index)
+    renew_df["Conventional Hydroelectric"] = hydro_gen["hydro"] / hydro_gen["hydro"].max()
+    final_df: DataFrame[ERCOTRenewableData] = renew_df
+    return final_df
 
 
 if __name__ == "__main__":

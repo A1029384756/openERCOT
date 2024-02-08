@@ -8,49 +8,13 @@ from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 
 from eia_data import get_eia_unit_generation, get_eia_unit_data, get_fuel_costs
-from ercot_data import get_fuel_mix_data, get_eroct_load_data
+from ercot_data import get_eroct_load_data, get_ercot_renewable_data
 
 load_dotenv()
 
 EIA_API_KEY = os.getenv("EIA_API_KEY")
 CEMS_API_KEY = os.getenv("CEMS_API_KEY")
 
-
-def get_renewable_gen(n_shots: pd.Series) -> dict[str, pd.Series]:
-    """
-    finds the renewable generation for ERCOT in a percentage of installed capacity
-    :param n_shots: takes a series of snapshots to find generation for
-    :return: returns a tuple with the solar and wind percentage generation
-    """
-    renewable_gen = pd.read_excel(
-        "https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId=890277261",
-        sheet_name=["Wind Data", "Solar Data"],
-    )
-    wind = renewable_gen["Wind Data"]
-    wind = wind.drop_duplicates("Time (Hour-Ending)").set_index("Time (Hour-Ending)")
-    wind.index = pd.to_datetime(wind.index)
-    solar = renewable_gen["Solar Data"]
-    solar = solar.drop_duplicates(subset="Time (Hour-Ending)").set_index(
-        "Time (Hour-Ending)"
-    )
-    solar.index = pd.to_datetime(solar.index)
-    solar = solar[solar.index.isin(n_shots)]
-    wind = wind[wind.index.isin(n_shots)]
-
-    # refactor this to be less brittle
-    # cache this
-    # only works for 2022
-    hydro_gen = get_fuel_mix_data()
-    hydro_gen.index = pd.to_datetime(hydro_gen.index)
-    hydro_gen = hydro_gen[hydro_gen.index.isin(n_shots)]
-
-    caps = {
-        "Solar Photovoltaic": solar["Solar Output, % of Installed"] / 100,
-        "Onshore Wind Turbine": wind["Wind Output, % of Installed"] / 100,
-        "Conventional Hydroelectric": hydro_gen["hydro"] / hydro_gen["hydro"].max(),
-    }
-
-    return caps
 
 
 def build_crosswalk() -> pd.DataFrame:
@@ -167,7 +131,7 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
     load_data = get_eroct_load_data(year)
 
     network.snapshots = load_data.head(n_shots).index
-    renewable_caps = get_renewable_gen(network.snapshots)
+    renewable_caps = get_ercot_renewable_data(network.snapshots)
 
     default_heat_rates = generators.groupby("technology")["heatRate"].mean().dropna()
     # https://www.eia.gov/electricity/annual/html/epa_08_02.html
