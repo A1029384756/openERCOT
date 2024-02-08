@@ -217,9 +217,9 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
             )
         else:
             if unit["technology"] in (
-                    "Solar Photovoltaic",
-                    "Onshore Wind Turbine",
-                    "Conventional Hydroelectric",
+                "Solar Photovoltaic",
+                "Onshore Wind Turbine",
+                "Conventional Hydroelectric",
             ):
                 all_caps.append(
                     pd.Series(
@@ -296,14 +296,14 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
                     bids = []
 
                     for month, snapshot_chunk in network.snapshots.to_series().groupby(
-                            pd.Grouper(freq="M")
+                        pd.Grouper(freq="M")
                     ):
                         fuel_index = f"{month.year}-{month.month:02}"
                         try:
                             bid = (
-                                          fuel_prices.loc[fuel_index, unit["energy_source_code"]]
-                                          * heat_rate
-                                  ) + float(assumptions.loc[unit["technology"], "vom"])
+                                fuel_prices.loc[fuel_index, unit["energy_source_code"]]
+                                * heat_rate
+                            ) + float(assumptions.loc[unit["technology"], "vom"])
                         except KeyError:
                             print(
                                 f"No Fuel Price For {unit['energy_source_code']} in {fuel_index}"
@@ -327,22 +327,22 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
 
 
 def analyze_network(
-        year: int,
-        n_shots: int,
-        committable: bool = False,
-        set_size: int = 7 * 24,
-        overlap: int = 2,
+    year: int,
+    n_shots: int,
+    committable: bool = False,
+    set_size: int = 7 * 24,
+    overlap: int = 2,
 ):
     network = build_network(year, n_shots, committable)
     # simulate the chunks
     for i in range(n_shots // set_size):
-        chunk = network.snapshots[i * set_size: (i + 1) * set_size + overlap]
+        chunk = network.snapshots[i * set_size : (i + 1) * set_size + overlap]
         print(f"Simulating {chunk[0]} to {chunk[-1]}")
         network.optimize(chunk, solver_name="highs")
 
     # simulate any extra snapshots not caught in chunks
     if n_shots % set_size != 0:
-        chunk = network.snapshots[n_shots % set_size:]
+        chunk = network.snapshots[n_shots % set_size :]
         print(f"Simulating {chunk[0]} to {chunk[-1]}")
         network.optimize(chunk, solver_name="highs")
 
