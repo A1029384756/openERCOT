@@ -131,6 +131,10 @@ def get_ercot_renewable_data(snapshots) -> DataFrame[ERCOTRenewableData]:
     hydro_gen.index = pd.to_datetime(hydro_gen.index)
     renew_df["Conventional Hydroelectric"] = hydro_gen["hydro"] / hydro_gen["hydro"].max()
     final_df: DataFrame[ERCOTRenewableData] = renew_df
+
+    # if we are missing any values, interpolate
+    if final_df.isnull().values.any():
+        final_df = final_df.interpolate()
     return final_df
 
 
