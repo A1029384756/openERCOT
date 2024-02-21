@@ -70,8 +70,8 @@ def get_ercot_fuel_mix_data_annual(file_url: str) -> DataFrame[ERCOTFuelMixData]
         for date in month["Date"].unique():
             day_data = month[month["Date"] == date]
             filtered_day_data = day_data.loc[
-                                :, ~day_data.columns.isin(["Date", "Settlement Type", "Total"])
-                                ]
+                :, ~day_data.columns.isin(["Date", "Settlement Type", "Total"])
+            ]
             filtered_day_data = filtered_day_data.set_index("Fuel").T.reset_index(
                 drop=True
             )
@@ -93,7 +93,9 @@ def get_ercot_fuel_mix_data_annual(file_url: str) -> DataFrame[ERCOTFuelMixData]
     return final_data
 
 
-def get_ercot_fuel_mix_data(files: np.ndarray[str], years: np.ndarray[int]) -> DataFrame[ERCOTFuelMixData]:
+def get_ercot_fuel_mix_data(
+    files: np.ndarray[str], years: np.ndarray[int]
+) -> DataFrame[ERCOTFuelMixData]:
     total_data = []
     for file in files:
         total_data.append(get_ercot_fuel_mix_data_annual(file))
@@ -122,14 +124,10 @@ def get_ercot_solar_wind_data(doc_ids, years):
 
 
 def get_eroct_load_data_annual(zip_url: str) -> DataFrame[ERCOTLoadData]:
-    url = requests.get(
-        zip_url
-    )
+    url = requests.get(zip_url)
     zip_file = ZipFile(BytesIO(url.content))
 
-    load_data = pd.read_excel(
-        zip_file.open(zip_file.namelist()[0])
-    )
+    load_data = pd.read_excel(zip_file.open(zip_file.namelist()[0]))
     load_data.rename(mapper=ZONE_NAME_MAP, axis=1, inplace=True)
     # drop daylight savings hour
     load_data = load_data[~load_data["Hour Ending"].str.contains("DST", na=False)]
@@ -145,20 +143,26 @@ def get_eroct_load_data_annual(zip_url: str) -> DataFrame[ERCOTLoadData]:
     return load_data
 
 
-def get_ercot_load(load_urls: np.ndarray[str], years: np.ndarray[int]) -> DataFrame[ERCOTLoadData]:
+def get_ercot_load(
+    load_urls: np.ndarray[str], years: np.ndarray[int]
+) -> DataFrame[ERCOTLoadData]:
     total_data = []
     for url in load_urls:
         total_data.append(get_eroct_load_data_annual(url))
     final_data = pd.concat(total_data)
     final_data.sort_index(inplace=True)
-    filtered_data: DataFrame[ERCOTLoadData] = final_data[final_data.index.year.isin(years)]
+    filtered_data: DataFrame[ERCOTLoadData] = final_data[
+        final_data.index.year.isin(years)
+    ]
     return filtered_data
 
 
 def get_ercot_solar_wind_data_annual(doc_id) -> Tuple[pd.Series, pd.Series]:
     renewable_gen = pd.read_excel(
         f"https://www.ercot.com/misdownload/servlets/mirDownload?doclookupId={doc_id}",
-        sheet_name=["Wind Data", "Solar Data"], usecols="A, G", index_col=0
+        sheet_name=["Wind Data", "Solar Data"],
+        usecols="A, G",
+        index_col=0,
     )
 
     wind = renewable_gen["Wind Data"]
@@ -178,10 +182,16 @@ def get_ercot_solar_wind_data_annual(doc_id) -> Tuple[pd.Series, pd.Series]:
 
 def get_all_ercot_data():
     ercot_files = pd.read_csv("ercot_files.csv", index_col="year")
-    fuel_mix = get_ercot_fuel_mix_data(ercot_files["fuel_mix"].values, ercot_files.index.values)
+    fuel_mix = get_ercot_fuel_mix_data(
+        ercot_files["fuel_mix"].values, ercot_files.index.values
+    )
     load = get_ercot_load(ercot_files["load"].values, ercot_files.index.values)
-    renewable = get_ercot_solar_wind_data(ercot_files["renewable_gen"].values, ercot_files.index.values)
-    renewable["Conventional Hydroelectric"] = fuel_mix["hydro"] / fuel_mix["hydro"].max()
+    renewable = get_ercot_solar_wind_data(
+        ercot_files["renewable_gen"].values, ercot_files.index.values
+    )
+    renewable["Conventional Hydroelectric"] = (
+        fuel_mix["hydro"] / fuel_mix["hydro"].max()
+    )
     return load, renewable
 
 

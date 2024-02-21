@@ -76,7 +76,9 @@ def build_heatrates_unit(year) -> pd.DataFrame:
 def build_heatrates_plant(start, end, plant_ids) -> pd.Series:
     gen = get_eia_unit_generation(start, end, plant_ids)
     gen["plantCode"] = gen["plantCode"].astype(pd.Int32Dtype())
-    gen[["total-consumption-btu", "generation"]] = gen[["total-consumption-btu", "generation"]].astype(float)
+    gen[["total-consumption-btu", "generation"]] = gen[
+        ["total-consumption-btu", "generation"]
+    ].astype(float)
     grouped = gen.groupby("plantCode")[["total-consumption-btu", "generation"]].sum()
     heat_rate = grouped["total-consumption-btu"] / grouped["generation"]
     heat_rate.name = "heatRate"
@@ -184,9 +186,9 @@ def build_network(start: str, end: str) -> pypsa.Network:
             )
         else:
             if unit["technology"] in (
-                    "Solar Photovoltaic",
-                    "Onshore Wind Turbine",
-                    "Conventional Hydroelectric",
+                "Solar Photovoltaic",
+                "Onshore Wind Turbine",
+                "Conventional Hydroelectric",
             ):
                 all_caps.append(
                     pd.Series(
@@ -264,17 +266,23 @@ def build_network(start: str, end: str) -> pypsa.Network:
                     caps = []
 
                     for month, snapshot_chunk in network.snapshots.to_series().groupby(
-                            pd.Grouper(freq="M")
+                        pd.Grouper(freq="M")
                     ):
                         fuel_index = f"{month.year}-{month.month:02}"
 
-                        if td(unit["first_op_month"]) <= td(month) <= td(unit["last_op_month"]):
+                        if (
+                            td(unit["first_op_month"])
+                            <= td(month)
+                            <= td(unit["last_op_month"])
+                        ):
                             operating = 1
                             try:
                                 bid = (
-                                              fuel_prices.loc[fuel_index, unit["energy_source_code"]]
-                                              * heat_rate
-                                      ) + float(assumptions.loc[unit["technology"], "vom"])
+                                    fuel_prices.loc[
+                                        fuel_index, unit["energy_source_code"]
+                                    ]
+                                    * heat_rate
+                                ) + float(assumptions.loc[unit["technology"], "vom"])
 
                             except KeyError:
                                 print(
@@ -308,17 +316,19 @@ def build_network(start: str, end: str) -> pypsa.Network:
 
 
 def analyze_network(
-        start: str,
-        end: str,
-        committable: bool = False,
-        set_size: int = 7 * 24,
-        overlap: int = 2,
+    start: str,
+    end: str,
+    committable: bool = False,
+    set_size: int = 7 * 24,
+    overlap: int = 2,
 ):
     if isfile("network.nc"):
         network = pypsa.Network()
         network.import_from_netcdf(path="network.nc")
     else:
-        print(f"Failed to import network, building from scratch from {NETWORK_START} to {NETWORK_END}")
+        print(
+            f"Failed to import network, building from scratch from {NETWORK_START} to {NETWORK_END}"
+        )
         network = build_network(NETWORK_START, NETWORK_END)
         print("Built network, exporting as network.nc")
         network.export_to_netcdf("network.nc")
@@ -327,22 +337,28 @@ def analyze_network(
         network.generators.committable = False
         print("Generators are not committable for this simulation")
     else:
-        print("Generators are committable, this will slow down simulation significantly")
+        print(
+            "Generators are committable, this will slow down simulation significantly"
+        )
 
     start_sim = datetime.datetime.strptime(start, "%Y-%m-%d")
     end_sim = datetime.datetime.strptime(end, "%Y-%m-%d").replace(hour=23)
-    simulation_snapshots = network.snapshots[network.snapshots.to_series().between(start_sim, end_sim)]
+    simulation_snapshots = network.snapshots[
+        network.snapshots.to_series().between(start_sim, end_sim)
+    ]
 
     # simulate the chunks
     for i in range(len(simulation_snapshots) // set_size):
-        chunk = simulation_snapshots[i * set_size: (i + 1) * set_size + overlap]
+        chunk = simulation_snapshots[i * set_size : (i + 1) * set_size + overlap]
         print(f"Simulating {chunk[0]} to {chunk[-1]} with length {len(chunk)}")
         network.optimize(chunk, solver_name="highs")
 
     # simulate any extra snapshots not caught in chunks
     if len(simulation_snapshots) % set_size != 0:
-        chunk = simulation_snapshots[-len(simulation_snapshots) % set_size:]
-        print(f"Simulating extra chunk from {chunk[0]} to {chunk[-1]} with length {len(chunk)}")
+        chunk = simulation_snapshots[-len(simulation_snapshots) % set_size :]
+        print(
+            f"Simulating extra chunk from {chunk[0]} to {chunk[-1]} with length {len(chunk)}"
+        )
         network.optimize(chunk, solver_name="highs")
 
     generation = network.generators_t.p.loc[simulation_snapshots]
@@ -389,4 +405,6 @@ def compare_fuel_mix():
 
 
 if __name__ == "__main__":
-    analyze_network(start="2021-01-01", end="2021-01-07", committable=False, set_size=23, overlap=2)
+    analyze_network(
+        start="2021-01-01", end="2021-01-07", committable=False, set_size=23, overlap=2
+    )

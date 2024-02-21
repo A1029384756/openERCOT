@@ -22,13 +22,13 @@ def build_params_units(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-            '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
-            + start
-            + '","end":"'
-            + end
-            + '","sort":[{"column":"period","direction":"desc"}],"offset":'
-            + str(offset)
-            + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
+        '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
+        + start
+        + '","end":"'
+        + end
+        + '","sort":[{"column":"period","direction":"desc"}],"offset":'
+        + str(offset)
+        + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
     )
 
 
@@ -41,17 +41,19 @@ def build_params_fuels(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-            '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
-            + start
-            + '", "end": "'
-            + end
-            + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-            + str(offset)
-            + ', "length": 5000 }'
+        '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
+        + start
+        + '", "end": "'
+        + end
+        + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+        + str(offset)
+        + ', "length": 5000 }'
     )
 
 
-def build_params_generations(start: str, end: str, plant_ids: List[str], offset: int) -> str:
+def build_params_generations(
+    start: str, end: str, plant_ids: List[str], offset: int
+) -> str:
     """
     builds x-params for eia fuels api call
     :param start: year-month to start
@@ -61,15 +63,15 @@ def build_params_generations(start: str, end: str, plant_ids: List[str], offset:
     :return: x-params as a string
     """
     return (
-            '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
-            + '", "'.join(plant_ids)
-            + '" ] }, "start": "'
-            + start
-            + '", "end": "'
-            + end
-            + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-            + str(offset)
-            + ', "length": 5000 }'
+        '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
+        + '", "'.join(plant_ids)
+        + '" ] }, "start": "'
+        + start
+        + '", "end": "'
+        + end
+        + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+        + str(offset)
+        + ', "length": 5000 }'
     )
 
 
@@ -106,11 +108,7 @@ def get_eia_unit_data(start: str, end: str) -> pd.DataFrame:
     while offset == 0 or offset < total:
         r = requests.get(
             url,
-            headers={
-                "x-params": build_params_units(
-                    start, end, offset
-                )
-            },
+            headers={"x-params": build_params_units(start, end, offset)},
             params={"api_key": EIA_API_KEY},
         )
         if r.status_code == 200:
@@ -148,8 +146,14 @@ def get_fuel_costs(start: datetime.datetime, end: datetime.datetime) -> pd.DataF
     df = pd.DataFrame(total_data)
     df["cost-per-btu"] = pd.to_numeric(df["cost-per-btu"]).replace(0, np.nan)
     df.dropna(subset="cost-per-btu", inplace=True)
-    pivot = pd.pivot_table(df, index="period", values="cost-per-btu", columns="fueltypeid")
-    pivot = pd.DataFrame(index=month_range).merge(pivot, how="left", left_index=True, right_index=True).interpolate()
+    pivot = pd.pivot_table(
+        df, index="period", values="cost-per-btu", columns="fueltypeid"
+    )
+    pivot = (
+        pd.DataFrame(index=month_range)
+        .merge(pivot, how="left", left_index=True, right_index=True)
+        .interpolate()
+    )
     return pivot
 
 
