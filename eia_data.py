@@ -1,3 +1,4 @@
+import datetime
 import os
 from time import sleep
 from typing import List, Tuple
@@ -21,52 +22,54 @@ def build_params_units(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-        '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
-        + start
-        + '","end":"'
-        + end
-        + '","sort":[{"column":"period","direction":"desc"}],"offset":'
-        + str(offset)
-        + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
+            '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
+            + start
+            + '","end":"'
+            + end
+            + '","sort":[{"column":"period","direction":"desc"}],"offset":'
+            + str(offset)
+            + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
     )
 
 
-def build_params_fuels(year: str, offset: int) -> str:
+def build_params_fuels(start: str, end: str, offset: int) -> str:
     """
     builds x-params for eia fuels api call
-    :param year: year to get data
+    :param start: start of interval as year-month zero padded
+    :param end: end of interval as year-month zero padded
     :param offset: integer offset for pagination
     :return: x-params as a string
     """
     return (
-        '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
-        + year
-        + '-01", "end": "'
-        + year
-        + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-        + str(offset)
-        + ', "length": 5000 }'
+            '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
+            + start
+            + '", "end": "'
+            + end
+            + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+            + str(offset)
+            + ', "length": 5000 }'
     )
 
 
-def build_params_generations(year: str, plant_ids: List[str], offset: int) -> str:
+def build_params_generations(start: str, end: str, plant_ids: List[str], offset: int) -> str:
     """
     builds x-params for eia fuels api call
-    :param year: year to get data
+    :param start: year-month to start
+    :param end: year-month to end
     :param plant_ids: EIA plant IDs to retrieve data for
     :param offset: integer offset for pagination
     :return: x-params as a string
     """
     return (
-        '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
-        + '", "'.join(plant_ids)
-        + '" ] }, "start": "'
-        + year
-        + '-01", "end": "'
-        + year
-        + '-12", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-        + str(offset)
-        + ', "length": 5000 }'
+            '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
+            + '", "'.join(plant_ids)
+            + '" ] }, "start": "'
+            + start
+            + '", "end": "'
+            + end
+            + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+            + str(offset)
+            + ', "length": 5000 }'
     )
 
 
@@ -94,24 +97,18 @@ def get_eia_unit_capacity_bounds() -> Tuple[int, str]:
     return int(end[0:4]), end
 
 
-def get_eia_unit_data(year: int, last=False) -> pd.DataFrame:
+def get_eia_unit_data(start: str, end: str) -> pd.DataFrame:
     data = []
     url = "https://api.eia.gov/v2/electricity/operating-generator-capacity/data/"
     offset: int = 0
     total: int = 0
-    year_month = str(year) + "-12"
-    latest_year, end = get_eia_unit_capacity_bounds()
-    if latest_year == year:
-        year_month = end
-    elif year > latest_year:
-        raise ValueError(f"EIA API has no data for {year}")
 
     while offset == 0 or offset < total:
         r = requests.get(
             url,
             headers={
                 "x-params": build_params_units(
-                    year_month if last else f"{year}-01", year_month, offset
+                    start, end, offset
                 )
             },
             params={"api_key": EIA_API_KEY},
@@ -129,39 +126,34 @@ def get_eia_unit_data(year: int, last=False) -> pd.DataFrame:
     return total_data.astype({"plantid": pd.Int32Dtype()})
 
 
-def get_fuel_costs(year: int) -> pd.DataFrame:
-    data = []
+def get_fuel_costs_month(year_month) -> List:
+    # this is currently missing data for 2023-12, should be published soon
     url = "https://api.eia.gov/v2/electricity/electric-power-operational-data/data/"
-    offset: int = 0
-    total: int = 0
 
-    while offset == 0 or offset < total:
-        r = requests.get(
-            url,
-            headers={"x-params": build_params_fuels(str(year), offset)},
-            params={"api_key": EIA_API_KEY},
-        )
-        if r.status_code == 200:
-            total = int(r.json()["response"]["total"])
-            data.extend(r.json()["response"]["data"])
-            offset += 5000
-        elif r.status_code == 409:
-            print("Waiting 5 Seconds Before Next Request", r.json())
-            sleep(5)
-        else:
-            raise ConnectionError("Issue with request", r.json())
-    costs = (
-        pd.DataFrame(data)
-        .replace(to_replace=0, value=np.nan)
-        .dropna()
-        .astype({"cost-per-btu": float})
+    r = requests.get(
+        url,
+        headers={"x-params": build_params_fuels(year_month, year_month, 0)},
+        params={"api_key": EIA_API_KEY},
     )
-    return costs.pivot_table(
-        index="period", columns="fueltypeid", values="cost-per-btu", aggfunc="mean"
-    )
+    if r.json()["response"].get("warning"):
+        print(r.json()["response"]["warning"])
+    return r.json()["response"]["data"]
 
 
-def get_eia_unit_generation(year: int, plant_ids) -> pd.DataFrame:
+def get_fuel_costs(start: datetime.datetime, end: datetime.datetime) -> pd.DataFrame:
+    month_range = [f"{month:%Y-%m}" for month in pd.date_range(start, end, freq="M")]
+    total_data = []
+    for month in month_range:
+        total_data.extend(get_fuel_costs_month(month))
+    df = pd.DataFrame(total_data)
+    df["cost-per-btu"] = pd.to_numeric(df["cost-per-btu"]).replace(0, np.nan)
+    df.dropna(subset="cost-per-btu", inplace=True)
+    pivot = pd.pivot_table(df, index="period", values="cost-per-btu", columns="fueltypeid")
+    pivot = pd.DataFrame(index=month_range).merge(pivot, how="left", left_index=True, right_index=True).interpolate()
+    return pivot
+
+
+def get_eia_unit_generation(start: str, end: str, plant_ids) -> pd.DataFrame:
     data = []
     url = "https://api.eia.gov/v2/electricity/facility-fuel/data/"
     offset: int = 0
@@ -172,7 +164,7 @@ def get_eia_unit_generation(year: int, plant_ids) -> pd.DataFrame:
             url,
             headers={
                 "x-params": build_params_generations(
-                    year=str(year), plant_ids=plant_ids, offset=offset
+                    start=start, end=end, plant_ids=plant_ids, offset=offset
                 )
             },
             params={"api_key": EIA_API_KEY},

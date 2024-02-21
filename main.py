@@ -1,5 +1,7 @@
+import datetime
 import math
 import os
+from os.path import isfile
 
 import pypsa
 import pandas as pd
@@ -8,12 +10,15 @@ from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 
 from eia_data import get_eia_unit_generation, get_eia_unit_data, get_fuel_costs
-from ercot_data import get_eroct_load_data, get_ercot_renewable_data
+from ercot_data import get_all_ercot_data
 
 load_dotenv()
 
 EIA_API_KEY = os.getenv("EIA_API_KEY")
 CEMS_API_KEY = os.getenv("CEMS_API_KEY")
+
+NETWORK_START = "2021-01"
+NETWORK_END = "2023-12"
 
 
 def build_crosswalk() -> pd.DataFrame:
@@ -68,17 +73,22 @@ def build_heatrates_unit(year) -> pd.DataFrame:
     return merged[["EIA_PLANT_ID", "EIA_GENERATOR_ID", "heatRate"]]
 
 
-def build_heatrates_plant(year, plant_ids) -> pd.DataFrame:
-    gen = get_eia_unit_generation(year, plant_ids)
-    gen["heatRate"] = gen["total-consumption-btu"].astype(float) / gen[
-        "generation"
-    ].astype(float)
+def build_heatrates_plant(start, end, plant_ids) -> pd.Series:
+    gen = get_eia_unit_generation(start, end, plant_ids)
     gen["plantCode"] = gen["plantCode"].astype(pd.Int32Dtype())
-    return gen
+    gen[["total-consumption-btu", "generation"]] = gen[["total-consumption-btu", "generation"]].astype(float)
+    grouped = gen.groupby("plantCode")[["total-consumption-btu", "generation"]].sum()
+    heat_rate = grouped["total-consumption-btu"] / grouped["generation"]
+    heat_rate.name = "heatRate"
+    return heat_rate
 
 
-def build_generators(year) -> pd.DataFrame:
-    units = get_eia_unit_data(year, last=True)
+def build_generators(start, end) -> pd.DataFrame:
+    units = get_eia_unit_data(start, end)
+    units["period"] = pd.to_datetime(units["period"])
+    # filter units to just operating units
+    units = units[units["statusDescription"] == "Operating"]
+    units = units.loc[units.groupby(["plantid", "generatorid"])["period"].idxmax()]
     try:
         county_to_zone = pd.read_csv("zone_to_county.csv", index_col="county")
     except FileNotFoundError:
@@ -86,7 +96,16 @@ def build_generators(year) -> pd.DataFrame:
             "Cannot run without zone_to_county.csv, please make sure it is available on the path"
         )
     units = units.merge(county_to_zone, how="left", on="county")
-    heatrates = build_heatrates_plant(year, units["plantid"].unique().astype(str))
+    units["nameplate-capacity-mw"] = pd.to_numeric(
+        units["nameplate-capacity-mw"], errors="coerce"
+    )
+
+    # remove this
+    units["period"] = units["period"].replace("2023-11", "2023-12")
+    units["last_op_month"] = pd.to_datetime(units["period"])
+    units["first_op_month"] = pd.to_datetime(units["operating-year-month"])
+
+    heatrates = build_heatrates_plant(start, end, units["plantid"].unique().astype(str))
     units = units.merge(
         heatrates,
         left_on="plantid",
@@ -96,41 +115,27 @@ def build_generators(year) -> pd.DataFrame:
     return units
 
 
-def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.Network:
+def td(date):
+    return date.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def build_network(start: str, end: str) -> pypsa.Network:
     # load local CSV files
     try:
         assumptions = pd.read_csv("technology_assumptions.csv", index_col="technology")
-    except FileNotFoundError:
-        raise RuntimeError(
-            "Cannot run without technology_assumptions.csv, please make sure it is available on the path"
-        )
-
-    try:
         lines = pd.read_csv("transmission_lines.csv")
-    except FileNotFoundError:
-        raise RuntimeError(
-            "Cannot run without transmission_lines.csv, please make sure it is available on the path"
-        )
-
-    try:
         zones = pd.read_csv("weather_zones.csv", index_col="ZONE")
     except FileNotFoundError:
         raise RuntimeError(
-            "Cannot run without weather_zones.csv, please make sure it is available on the path"
+            "Cannot run without technology_assumptions.csv, transmission_lines.csv, and weather_zones.csv please make sure it is available on the path"
         )
 
     network = pypsa.Network()
-    # this needs to be cached
-    generators = build_generators(year)
-    generators.to_csv("gen.csv")
-    generators["nameplate-capacity-mw"] = pd.to_numeric(
-        generators["nameplate-capacity-mw"], errors="coerce"
-    )
+    generators = build_generators(start, end)
 
-    load_data = get_eroct_load_data(year)
+    load_data, renewable_caps = get_all_ercot_data()
 
-    network.snapshots = load_data.head(n_shots).index
-    renewable_caps = get_ercot_renewable_data(network.snapshots)
+    network.snapshots = load_data.index
 
     default_heat_rates = generators.groupby("technology")["heatRate"].mean().dropna()
     # https://www.eia.gov/electricity/annual/html/epa_08_02.html
@@ -141,8 +146,7 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
     # mostly waste heat
     default_heat_rates["All Other"] = 11.030
 
-    # this is fast to generate but can be cached
-    fuel_prices = get_fuel_costs(year)
+    fuel_prices = get_fuel_costs(network.snapshots.min(), network.snapshots.max())
 
     for zone, (lat, lon) in zones.iterrows():
         network.add("Bus", x=lon, y=lat, v_nom=345000, name=zone)
@@ -152,7 +156,7 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
             "Load",
             name=load + "L",
             bus=load,
-            p_set=load_data[load].head(n_shots).values,
+            p_set=load_data[load].values,
         )
 
     for _, (START, END, TTC) in lines.iterrows():
@@ -180,9 +184,9 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
             )
         else:
             if unit["technology"] in (
-                "Solar Photovoltaic",
-                "Onshore Wind Turbine",
-                "Conventional Hydroelectric",
+                    "Solar Photovoltaic",
+                    "Onshore Wind Turbine",
+                    "Conventional Hydroelectric",
             ):
                 all_caps.append(
                     pd.Series(
@@ -247,7 +251,7 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
                         min_up_time=float(
                             assumptions.loc[unit["technology"], "min_up_time"]
                         ),
-                        committable=committable,
+                        committable=True,
                     )
 
                     heat_rate = (
@@ -257,25 +261,39 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
                     )
 
                     bids = []
+                    caps = []
 
                     for month, snapshot_chunk in network.snapshots.to_series().groupby(
-                        pd.Grouper(freq="M")
+                            pd.Grouper(freq="M")
                     ):
                         fuel_index = f"{month.year}-{month.month:02}"
-                        try:
-                            bid = (
-                                fuel_prices.loc[fuel_index, unit["energy_source_code"]]
-                                * heat_rate
-                            ) + float(assumptions.loc[unit["technology"], "vom"])
-                        except KeyError:
-                            print(
-                                f"No Fuel Price For {unit['energy_source_code']} in {fuel_index}"
-                            )
+
+                        if td(unit["first_op_month"]) <= td(month) <= td(unit["last_op_month"]):
+                            operating = 1
+                            try:
+                                bid = (
+                                              fuel_prices.loc[fuel_index, unit["energy_source_code"]]
+                                              * heat_rate
+                                      ) + float(assumptions.loc[unit["technology"], "vom"])
+
+                            except KeyError:
+                                print(
+                                    f"No Fuel Price For {unit['energy_source_code']} in {fuel_index}"
+                                )
+                                bid = 0
+                        else:
+                            print(f"Unit {unit_name} not operating in {fuel_index}")
                             bid = 0
+                            operating = 0
+
+                        caps.extend([operating] * snapshot_chunk.size)
                         bids.extend([bid] * snapshot_chunk.size)
 
                     all_bids.append(
                         pd.Series(bids, name=unit_name, index=network.snapshots)
+                    )
+                    all_caps.append(
+                        pd.Series(caps, name=unit_name, index=network.snapshots)
                     )
 
     network.import_series_from_dataframe(
@@ -290,26 +308,46 @@ def build_network(year: int, n_shots: int, committable: bool = False) -> pypsa.N
 
 
 def analyze_network(
-    year: int,
-    n_shots: int,
-    committable: bool = False,
-    set_size: int = 7 * 24,
-    overlap: int = 2,
+        start: str,
+        end: str,
+        committable: bool = False,
+        set_size: int = 7 * 24,
+        overlap: int = 2,
 ):
-    network = build_network(year, n_shots, committable)
+    if isfile("network.nc"):
+        network = pypsa.Network()
+        network.import_from_netcdf(path="network.nc")
+    else:
+        print(f"Failed to import network, building from scratch from {NETWORK_START} to {NETWORK_END}")
+        network = build_network(NETWORK_START, NETWORK_END)
+        print("Built network, exporting as network.nc")
+        network.export_to_netcdf("network.nc")
+
+    if not committable:
+        network.generators.committable = False
+        print("Generators are not committable for this simulation")
+    else:
+        print("Generators are committable, this will slow down simulation significantly")
+
+    start_sim = datetime.datetime.strptime(start, "%Y-%m-%d")
+    end_sim = datetime.datetime.strptime(end, "%Y-%m-%d").replace(hour=23)
+    simulation_snapshots = network.snapshots[network.snapshots.to_series().between(start_sim, end_sim)]
+
     # simulate the chunks
-    for i in range(n_shots // set_size):
-        chunk = network.snapshots[i * set_size : (i + 1) * set_size + overlap]
-        print(f"Simulating {chunk[0]} to {chunk[-1]}")
+    for i in range(len(simulation_snapshots) // set_size):
+        chunk = simulation_snapshots[i * set_size: (i + 1) * set_size + overlap]
+        print(f"Simulating {chunk[0]} to {chunk[-1]} with length {len(chunk)}")
         network.optimize(chunk, solver_name="highs")
 
     # simulate any extra snapshots not caught in chunks
-    if n_shots % set_size != 0:
-        chunk = network.snapshots[n_shots % set_size :]
-        print(f"Simulating {chunk[0]} to {chunk[-1]}")
+    if len(simulation_snapshots) % set_size != 0:
+        chunk = simulation_snapshots[-len(simulation_snapshots) % set_size:]
+        print(f"Simulating extra chunk from {chunk[0]} to {chunk[-1]} with length {len(chunk)}")
         network.optimize(chunk, solver_name="highs")
 
-    grouped = network.generators_t.p.T.groupby(by=network.generators["carrier"]).sum().T
+    generation = network.generators_t.p.loc[simulation_snapshots]
+
+    grouped = generation.T.groupby(by=network.generators["carrier"]).sum().T
     grouped["storage"] = network.storage_units_t.p.sum(axis=1).clip(lower=0)
     grouped.plot.area(
         xlabel="Hour",
@@ -317,17 +355,18 @@ def analyze_network(
         title=f"ERCOT Dispatch from {network.snapshots.min():%H:00 %m-%d-%Y} to {network.snapshots.max():%H:00 %m-%d-%Y}",
     )
 
-    grouped.to_csv("2022_jan_sim_plants.csv")
     plt.legend(title="Fuel Type")
     plt.show()
 
-    network.storage_units_t.p.sum(axis=1).head(24 * 7).plot(
+    battery_gen = network.storage_units_t.p.loc[simulation_snapshots]
+    battery_gen.sum(axis=1).head(24 * 7).plot(
         title="Net Battery Charge", ylabel="Net Charge MWs"
     )
     plt.show()
 
     if not committable:
-        network.buses_t.marginal_price.plot(
+        prices = network.buses_t.marginal_price.loc[simulation_snapshots]
+        prices.plot(
             xlabel="Date",
             ylabel="Price ($/MWH)",
             title="Zonal Price for ERCOT Dispatch",
@@ -350,5 +389,4 @@ def compare_fuel_mix():
 
 
 if __name__ == "__main__":
-    # compare_fuel_mix()
-    analyze_network(2022, 3 * 24, committable=False, set_size=3 * 24, overlap=0)
+    analyze_network(start="2021-01-01", end="2021-01-07", committable=False, set_size=23, overlap=2)
