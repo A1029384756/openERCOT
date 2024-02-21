@@ -355,7 +355,7 @@ def analyze_network(
 
     # simulate any extra snapshots not caught in chunks
     if len(simulation_snapshots) % set_size != 0:
-        chunk = simulation_snapshots[-(len(simulation_snapshots) % set_size):]
+        chunk = simulation_snapshots[-(len(simulation_snapshots) % set_size) :]
         print(
             f"Simulating extra chunk from {chunk[0]} to {chunk[-1]} with length {len(chunk)}"
         )
