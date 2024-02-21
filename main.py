@@ -355,7 +355,7 @@ def analyze_network(
 
     # simulate any extra snapshots not caught in chunks
     if len(simulation_snapshots) % set_size != 0:
-        chunk = simulation_snapshots[-len(simulation_snapshots) % set_size :]
+        chunk = simulation_snapshots[-(len(simulation_snapshots) % set_size):]
         print(
             f"Simulating extra chunk from {chunk[0]} to {chunk[-1]} with length {len(chunk)}"
         )
@@ -406,5 +406,5 @@ def compare_fuel_mix():
 
 if __name__ == "__main__":
     analyze_network(
-        start="2021-01-01", end="2021-01-07", committable=False, set_size=23, overlap=2
+        start="2022-01-01", end="2022-01-07", committable=False, set_size=48, overlap=2
     )
