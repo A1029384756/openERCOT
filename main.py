@@ -89,6 +89,7 @@ def build_heatrates_plant(start, end, plant_ids) -> pd.Series:
 def build_generators(start, end) -> pd.DataFrame:
     units = get_eia_unit_data(start, end)
     units["period"] = pd.to_datetime(units["period"])
+
     # filter units to just operating units
     units = units[units["statusDescription"] == "Operating"]
     units = units.loc[units.groupby(["plantid", "generatorid"])["period"].idxmax()]
@@ -103,8 +104,6 @@ def build_generators(start, end) -> pd.DataFrame:
         units["nameplate-capacity-mw"], errors="coerce"
     )
 
-    # remove this
-    units["period"] = units["period"].replace("2023-11", "2023-12")
     units["last_op_month"] = pd.to_datetime(units["period"])
     units["first_op_month"] = pd.to_datetime(units["operating-year-month"])
 

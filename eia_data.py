@@ -125,7 +125,6 @@ def get_eia_unit_data(start: str, end: str) -> pd.DataFrame:
 
 
 def get_fuel_costs_month(year_month) -> List:
-    # this is currently missing data for 2023-12, should be published soon
     url = "https://api.eia.gov/v2/electricity/electric-power-operational-data/data/"
 
     r = requests.get(
