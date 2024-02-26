@@ -2,6 +2,7 @@ import datetime
 import math
 import os
 from os.path import isfile
+from typing import Optional
 
 import pypsa
 import pandas as pd
@@ -183,12 +184,13 @@ def build_network(start: str, end: str) -> pypsa.Network:
                 # assumes round trip should be around .81
                 efficiency_store=0.9,
                 efficiency_dispatch=0.9,
+                marginal_cost=assumptions.loc[unit["technology"], "default_bid"]
             )
         else:
             if unit["technology"] in (
-                "Solar Photovoltaic",
-                "Onshore Wind Turbine",
-                "Conventional Hydroelectric",
+                    "Solar Photovoltaic",
+                    "Onshore Wind Turbine",
+                    "Conventional Hydroelectric",
             ):
                 all_caps.append(
                     pd.Series(
@@ -197,7 +199,8 @@ def build_network(start: str, end: str) -> pypsa.Network:
                         index=network.snapshots,
                     )
                 )
-                all_bids.append(pd.Series(-20, name=unit_name, index=network.snapshots))
+                all_bids.append(pd.Series(assumptions.loc[unit["technology"], "default_bid"], name=unit_name,
+                                          index=network.snapshots))
                 network.add(
                     "Generator",
                     name=unit_name,
@@ -210,7 +213,8 @@ def build_network(start: str, end: str) -> pypsa.Network:
                 if "Nuclear" in unit["technology"]:
                     # we consider nuclear to be base load, and will always run
                     all_bids.append(
-                        pd.Series(0, name=unit_name, index=network.snapshots)
+                        pd.Series(assumptions.loc[unit["technology"], "default_bid"], name=unit_name,
+                                  index=network.snapshots)
                     )
                     network.add(
                         "Generator",
@@ -221,9 +225,9 @@ def build_network(start: str, end: str) -> pypsa.Network:
                         type=unit["technology"],
                     )
                 elif "Landfill Gas" in unit["technology"]:
-                    # we currently consider landfill gas to be base load and will always run
                     all_bids.append(
-                        pd.Series(0, name=unit_name, index=network.snapshots)
+                        pd.Series(assumptions.loc[unit["technology"], "default_bid"], name=unit_name,
+                                  index=network.snapshots)
                     )
                     network.add(
                         "Generator",
@@ -266,29 +270,29 @@ def build_network(start: str, end: str) -> pypsa.Network:
                     caps = []
 
                     for month, snapshot_chunk in network.snapshots.to_series().groupby(
-                        pd.Grouper(freq="M")
+                            pd.Grouper(freq="M")
                     ):
                         fuel_index = f"{month.year}-{month.month:02}"
 
                         if (
-                            td(unit["first_op_month"])
-                            <= td(month)
-                            <= td(unit["last_op_month"])
+                                td(unit["first_op_month"])
+                                <= td(month)
+                                <= td(unit["last_op_month"])
                         ):
                             operating = 1
                             try:
                                 bid = (
-                                    fuel_prices.loc[
-                                        fuel_index, unit["energy_source_code"]
-                                    ]
-                                    * heat_rate
-                                ) + float(assumptions.loc[unit["technology"], "vom"])
+                                              fuel_prices.loc[
+                                                  fuel_index, unit["energy_source_code"]
+                                              ]
+                                              * heat_rate
+                                      ) + float(assumptions.loc[unit["technology"], "vom"])
 
                             except KeyError:
                                 print(
-                                    f"No Fuel Price For {unit['energy_source_code']} in {fuel_index}"
+                                    f"No Fuel Price For {unit['energy_source_code']} in {fuel_index} using default"
                                 )
-                                bid = 0
+                                bid = assumptions.loc[unit["technology"], "default_bid"]
                         else:
                             print(f"Unit {unit_name} not operating in {fuel_index}")
                             bid = 0
@@ -316,15 +320,25 @@ def build_network(start: str, end: str) -> pypsa.Network:
 
 
 def analyze_network(
-    start: str,
-    end: str,
-    committable: bool = False,
-    set_size: int = 7 * 24,
-    overlap: int = 2,
+        start: str,
+        end: str,
+        network_path: Optional[str] = None,
+        committable: bool = False,
+        set_size: int = 7 * 24,
+        overlap: int = 2,
 ):
-    if isfile("network.nc"):
+    """
+    Analyzes a network
+    :param network_path: path to reference for network loading
+    :param start: date to start simulation format: YEAR-MONTH-DAY ex: '2021-05-02'
+    :param end: date to start simulation format: YEAR-MONTH-DAY ex: '2021-05-02'
+    :param committable: whether to allow generators to be committable
+    :param set_size: integer size of chunk to simulate, set to zero for no chunking
+    :param overlap: integer size of chunk overlap, set to zero for no overlap
+    """
+    if isfile(network_path):
         network = pypsa.Network()
-        network.import_from_netcdf(path="network.nc")
+        network.import_from_netcdf(path=network_path)
     else:
         print(
             f"Failed to import network, building from scratch from {NETWORK_START} to {NETWORK_END}"
@@ -347,19 +361,22 @@ def analyze_network(
         network.snapshots.to_series().between(start_sim, end_sim)
     ]
 
-    # simulate the chunks
-    for i in range(len(simulation_snapshots) // set_size):
-        chunk = simulation_snapshots[i * set_size : (i + 1) * set_size + overlap]
-        print(f"Simulating {chunk[0]} to {chunk[-1]} with length {len(chunk)}")
-        network.optimize(chunk, solver_name="highs")
+    if set_size > 0:
+        # simulate the chunks
+        for i in range(len(simulation_snapshots) // set_size):
+            chunk = simulation_snapshots[i * set_size: (i + 1) * set_size + overlap]
+            print(f"Simulating {chunk[0]} to {chunk[-1]} with length {len(chunk)}")
+            network.optimize(chunk, solver_name="highs")
 
-    # simulate any extra snapshots not caught in chunks
-    if len(simulation_snapshots) % set_size != 0:
-        chunk = simulation_snapshots[-(len(simulation_snapshots) % set_size):]
-        print(
-            f"Simulating extra chunk from {chunk[0]} to {chunk[-1]} with length {len(chunk)}"
-        )
-        network.optimize(chunk, solver_name="highs")
+        # simulate any extra snapshots not caught in chunks
+        if len(simulation_snapshots) % set_size != 0:
+            chunk = simulation_snapshots[-(len(simulation_snapshots) % set_size):]
+            print(
+                f"Simulating extra chunk from {chunk[0]} to {chunk[-1]} with length {len(chunk)}"
+            )
+            network.optimize(chunk, solver_name="highs")
+    else:
+        network.optimize(simulation_snapshots, solver_name="highs")
 
     generation = network.generators_t.p.loc[simulation_snapshots]
 

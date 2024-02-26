@@ -1,18 +1,18 @@
-technology,vom,carrier,start_up_cost,min_up_time,ramp_up_limit,ramp_down_limit
-Solar Photovoltaic,0,solar,0,0,0,0
-Natural Gas Fired Combined Cycle,2.87,gas,80,6,.25,.25
-Natural Gas Fired Combustion Turbine,5.06,gas,75,1,.25,.25
-Onshore Wind Turbine,0,wind,0,0,0,0
-Conventional Steam Coal,5.06,coal,120,12,.25,.25
-Petroleum Liquids,5.29,dfo,60,1,.25,.25
-Landfill Gas,5.29,gas,60,6,.25,.25
-Conventional Hydroelectric,0,hydro,0,0,0,0
-Batteries,0,mwh,0,0,0,0
-Natural Gas Steam Turbine,2.1,gas,80,6,.25,.25
-Natural Gas Internal Combustion Engine,6.4,gas,60,1,.25,.25
-All Other,6.4,other,0,6,.25,.25
-Nuclear,0,nuclear,0,0,0,0
-Petroleum Coke,5.06,coal,120,12,.25,.25
-Other Waste Biomass,5.44,biomass,80,6,.25,.25
-Wood/Wood Waste Biomass,5.44,biomass,80,6,.25,.25
-Flywheels,0,mwh,0,0,0,0
+technology,vom,carrier,start_up_cost,min_up_time,ramp_up_limit,ramp_down_limit,default_bid
+Solar Photovoltaic,0,solar,0,0,0,0,-20
+Natural Gas Fired Combined Cycle,2.87,gas,80,6,.25,.25,30
+Natural Gas Fired Combustion Turbine,5.06,gas,75,1,.25,.25,30
+Onshore Wind Turbine,0,wind,0,0,0,0,-20
+Conventional Steam Coal,5.06,coal,120,12,.25,.25,25
+Petroleum Liquids,5.29,dfo,60,1,.25,.25,40
+Landfill Gas,5.29,gas,60,6,.25,.25,15
+Conventional Hydroelectric,0,hydro,0,0,0,0,-20
+Batteries,0,mwh,0,0,0,0,0
+Natural Gas Steam Turbine,2.1,gas,80,6,.25,.25,25
+Natural Gas Internal Combustion Engine,6.4,gas,60,1,.25,.25,35
+All Other,6.4,other,0,6,.25,.25,30
+Nuclear,0,nuclear,0,0,0,0,15
+Petroleum Coke,5.06,coal,120,12,.25,.25,25
+Other Waste Biomass,5.44,biomass,80,6,.25,.25,25
+Wood/Wood Waste Biomass,5.44,biomass,80,6,.25,.25,25
+Flywheels,0,mwh,0,0,0,0,0
