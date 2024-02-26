@@ -434,5 +434,10 @@ def compare_fuel_mix():
 
 if __name__ == "__main__":
     analyze_network(
-        network_path="network.nc", start="2022-01-01", end="2022-01-07", committable=False, set_size=48, overlap=2
+        network_path="network.nc",
+        start="2022-01-01",
+        end="2022-01-07",
+        committable=False,
+        set_size=48,
+        overlap=2,
     )
