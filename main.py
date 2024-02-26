@@ -347,7 +347,7 @@ def analyze_network(
     :param set_size: integer size of chunk to simulate, set to zero for no chunking
     :param overlap: integer size of chunk overlap, set to zero for no overlap
     """
-    if isfile(network_path):
+    if network_path is not None and isfile(network_path):
         network = pypsa.Network()
         network.import_from_netcdf(path=network_path)
     else:
@@ -434,5 +434,5 @@ def compare_fuel_mix():
 
 if __name__ == "__main__":
     analyze_network(
-        start="2022-01-01", end="2022-01-07", committable=False, set_size=48, overlap=2
+        network_path="network.nc", start="2022-01-01", end="2022-01-07", committable=False, set_size=48, overlap=2
     )
