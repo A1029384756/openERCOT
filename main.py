@@ -411,7 +411,6 @@ def analyze_network(scenario: Scenario):
         f"ERCOT Dispatch from {network.snapshots.min():%H:00 %m-%d-%Y} to {network.snapshots.max():%H:00 %m-%d-%Y}",
     )
 
-    plt.clf()
     battery_gen = network.storage_units_t.p.loc[simulation_snapshots]
     battery_gen.sum(axis=1).head(24 * 7).plot(
         title="Net Battery Charge", ylabel="Net Charge MWs"

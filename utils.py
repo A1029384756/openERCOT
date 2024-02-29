@@ -16,5 +16,6 @@ def render_graph(scenario: Scenario, name: str):
             else:
                 raise
         plt.savefig(f"{out_path}{name}")
+        plt.clf()
     else:
         plt.show()
