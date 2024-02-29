@@ -3,6 +3,7 @@ import os
 from time import sleep
 from typing import List, Tuple
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import requests
@@ -22,13 +23,13 @@ def build_params_units(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-        '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
-        + start
-        + '","end":"'
-        + end
-        + '","sort":[{"column":"period","direction":"desc"}],"offset":'
-        + str(offset)
-        + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
+            '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
+            + start
+            + '","end":"'
+            + end
+            + '","sort":[{"column":"period","direction":"desc"}],"offset":'
+            + str(offset)
+            + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
     )
 
 
@@ -41,18 +42,18 @@ def build_params_fuels(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-        '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
-        + start
-        + '", "end": "'
-        + end
-        + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-        + str(offset)
-        + ', "length": 5000 }'
+            '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
+            + start
+            + '", "end": "'
+            + end
+            + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+            + str(offset)
+            + ', "length": 5000 }'
     )
 
 
 def build_params_generations(
-    start: str, end: str, plant_ids: List[str], offset: int
+        start: str, end: str, plant_ids: List[str], offset: int
 ) -> str:
     """
     builds x-params for eia fuels api call
@@ -63,15 +64,15 @@ def build_params_generations(
     :return: x-params as a string
     """
     return (
-        '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
-        + '", "'.join(plant_ids)
-        + '" ] }, "start": "'
-        + start
-        + '", "end": "'
-        + end
-        + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-        + str(offset)
-        + ', "length": 5000 }'
+            '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
+            + '", "'.join(plant_ids)
+            + '" ] }, "start": "'
+            + start
+            + '", "end": "'
+            + end
+            + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+            + str(offset)
+            + ', "length": 5000 }'
     )
 
 
@@ -182,3 +183,14 @@ def get_eia_unit_generation(start: str, end: str, plant_ids) -> pd.DataFrame:
         else:
             raise ConnectionError("Issue with request", r.json())
     return pd.DataFrame(data)
+
+
+def get_battery_efficiency(start: str, end: str):
+    url = f"https://api.eia.gov/v2/electricity/facility-fuel/data/?facets[primeMover][]=BA&frequency=monthly&data[0]=consumption-for-eg&data[1]=gross-generation&facets[state][]=TX&facets[fuel2002][]=MWH&start={start}&end={end}&sort[0][column]=period&sort[0][direction]=desc&offset=0&length=5000"
+    r = requests.get(url, params={"api_key": EIA_API_KEY})
+    df = pd.DataFrame(r.json()["response"]["data"])
+    df["gross-generation"] = pd.to_numeric(df["gross-generation"])
+    df["consumption-for-eg"] = pd.to_numeric(df["consumption-for-eg"])
+    summed = df.groupby("period")[["gross-generation", "consumption-for-eg"]].sum()
+    summed["efficiency"] = (summed["gross-generation"] / summed["consumption-for-eg"]) * 100
+    return summed

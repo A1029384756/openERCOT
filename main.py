@@ -10,7 +10,7 @@ import requests
 from dotenv import load_dotenv
 from matplotlib import pyplot as plt
 
-from eia_data import get_eia_unit_generation, get_eia_unit_data, get_fuel_costs
+from eia_data import get_eia_unit_generation, get_eia_unit_data, get_fuel_costs, get_battery_efficiency
 from ercot_data import get_all_ercot_data
 
 load_dotenv()
@@ -20,6 +20,7 @@ CEMS_API_KEY = os.getenv("CEMS_API_KEY")
 
 NETWORK_START = "2021-01"
 NETWORK_END = "2023-12"
+ROUND_TRIP_EFFICIENCY = .8
 
 
 def build_crosswalk() -> pd.DataFrame:
@@ -181,8 +182,8 @@ def build_network(start: str, end: str) -> pypsa.Network:
                 p_nom=unit["nameplate-capacity-mw"],
                 carrier=assumptions.loc[unit["technology"], "carrier"],
                 # assumes round trip should be around .81
-                efficiency_store=0.9,
-                efficiency_dispatch=0.9,
+                efficiency_store=math.sqrt(ROUND_TRIP_EFFICIENCY),
+                efficiency_dispatch=math.sqrt(ROUND_TRIP_EFFICIENCY),
                 marginal_cost=assumptions.loc[unit["technology"], "default_bid"],
             )
         else:
