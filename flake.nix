@@ -40,6 +40,7 @@
           typing-inspect
           packaging
           pydantic
+          cartopy
         ];
 
         linopy = pkgs.python311Packages.buildPythonPackage rec {
