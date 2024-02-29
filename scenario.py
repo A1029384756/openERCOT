@@ -1,8 +1,7 @@
 from typing import TypedDict
-import matplotlib.pyplot as plt
 
 
-class SimulationParams(TypedDict):
+class SimulationParams(TypedDict, total=True):
     """
     start: date to start simulation format: YEAR-MONTH-DAY ex: '2021-05-02'
     end: date to end simulation format: YEAR-MONTH-DAY ex: '2021-05-02'
@@ -18,7 +17,7 @@ class SimulationParams(TypedDict):
     overlap: int
 
 
-class IOParams(TypedDict):
+class IOParams(TypedDict, total=True):
     """
     network_path: path to reference for network loading
     graphs_to_file: whether to output any graphs to a file or to the screen
@@ -28,7 +27,7 @@ class IOParams(TypedDict):
     graphs_to_file: bool
 
 
-class Scenario(TypedDict):
+class Scenario(TypedDict, total=True):
     """
     simulation_params: parameters to do with the actual network simulation
     io_params: parameters that specify where to read and write files

@@ -20,7 +20,7 @@ from eia_data import (
 from ercot_data import get_all_ercot_data
 from network_map import plot_network
 from scenario import Scenario
-from utils import render_graph
+from utils import render_graph, validate_dict
 
 load_dotenv()
 
@@ -456,5 +456,6 @@ if __name__ == "__main__":
         exit(os.EX_NOINPUT)
 
     scenario: Scenario = toml.load(args.scenario)  # type:ignore
+    validate_dict(scenario, Scenario, Scenario.__required_keys__)
     analyze_network(scenario)
     exit(os.EX_OK)
