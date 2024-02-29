@@ -2,6 +2,7 @@ import pypsa
 from pypsa.plot import plt
 import cartopy.crs as ccrs
 import cartopy
+import matplotlib.patches as mpatches
 
 
 def draw_map_cartopy(ax, geomap=True, color_geomap=None):
@@ -61,26 +62,35 @@ if __name__ == "__main__":
     network.import_from_netcdf(path="network.nc")
     gen = network.generators.groupby(["bus", "carrier"]).p_nom.sum()
 
-    network.plot(
+    bus_colors = {
+        "dfo": "#c6a0f6",
+        "coal": "#ee99a0",
+        "gas": "#f5a97f",
+        "nuclear": "#a6da95",
+        "biomass": "#91d7e3",
+        "solar": "#8aadf4",
+        "wind": "#f0c6c6",
+        "other": "#7dc4e4",
+        "hydro": "#b7bdf8",
+    }
+
+    collection = network.plot(
+        ax=ax,
         title="Open ERCOT Total Nodal Generation Capacity",
-        geomap=False,
+        geomap=True,
         bus_sizes=gen / 5e4,
-        bus_colors={
-            "dfo": "#c6a0f6",
-            "coal": "#ee99a0",
-            "gas": "#f5a97f",
-            "nuclear": "#a6da95",
-            "biomass": "#91d7e3",
-            "solar": "#8aadf4",
-            "wind": "#f0c6c6",
-            "other": "#7dc4e4",
-            "hydro": "#b7bdf8",
-        },
+        bus_colors=bus_colors,
         link_widths=2,
         margin=0.2,
         link_colors="black",
         color_geomap=True,
     )
+    handles = []
+    for k, v in bus_colors.items():
+        lab = "DFO" if k == "dfo" else k.title()
+        handles.append(mpatches.Patch(color=v, label=lab))
+
+    ax.legend(handles=handles, loc="lower left")
 
     plt.tight_layout()
     plt.show()
