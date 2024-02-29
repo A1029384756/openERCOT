@@ -1,8 +1,9 @@
 import datetime
 import math
 import os
+import toml
+import argparse
 from os.path import isfile
-from typing import Optional
 
 import pypsa
 import pandas as pd
@@ -17,6 +18,9 @@ from eia_data import (
     get_battery_efficiency,
 )
 from ercot_data import get_all_ercot_data
+from network_map import plot_network
+from scenario import Scenario
+from utils import render_graph
 
 load_dotenv()
 
@@ -335,23 +339,12 @@ def build_network(start: str, end: str) -> pypsa.Network:
     return network
 
 
-def analyze_network(
-    start: str,
-    end: str,
-    network_path: Optional[str] = None,
-    committable: bool = False,
-    set_size: int = 7 * 24,
-    overlap: int = 2,
-):
+def analyze_network(scenario: Scenario):
     """
     Analyzes a network
-    :param network_path: path to reference for network loading
-    :param start: date to start simulation format: YEAR-MONTH-DAY ex: '2021-05-02'
-    :param end: date to start simulation format: YEAR-MONTH-DAY ex: '2021-05-02'
-    :param committable: whether to allow generators to be committable
-    :param set_size: integer size of chunk to simulate, set to zero for no chunking
-    :param overlap: integer size of chunk overlap, set to zero for no overlap
+    :param scenario: a scenario object that holds important simulation info
     """
+    network_path = scenario["io_params"]["network_path"]
     if network_path is not None and isfile(network_path):
         network = pypsa.Network()
         network.import_from_netcdf(path=network_path)
@@ -360,10 +353,12 @@ def analyze_network(
             f"Failed to import network, building from scratch from {NETWORK_START} to {NETWORK_END}"
         )
         network = build_network(NETWORK_START, NETWORK_END)
-        print("Built network, exporting as network.nc")
-        network.export_to_netcdf("network.nc")
+        print(f"Built network, exporting as {network_path}")
+        network.export_to_netcdf(network_path)
 
-    if not committable:
+    plot_network(scenario, network)
+
+    if not scenario["simulation_params"]["committable"]:
         network.generators.committable = False
         print("Generators are not committable for this simulation")
     else:
@@ -371,12 +366,18 @@ def analyze_network(
             "Generators are committable, this will slow down simulation significantly"
         )
 
-    start_sim = datetime.datetime.strptime(start, "%Y-%m-%d")
-    end_sim = datetime.datetime.strptime(end, "%Y-%m-%d").replace(hour=23)
+    start_sim = datetime.datetime.strptime(
+        scenario["simulation_params"]["start_date"], "%Y-%m-%d"
+    )
+    end_sim = datetime.datetime.strptime(
+        scenario["simulation_params"]["end_date"], "%Y-%m-%d"
+    ).replace(hour=23)
     simulation_snapshots = network.snapshots[
         network.snapshots.to_series().between(start_sim, end_sim)
     ]
 
+    set_size = scenario["simulation_params"]["set_size"]
+    overlap = scenario["simulation_params"]["overlap"]
     if set_size > 0:
         # simulate the chunks
         for i in range(len(simulation_snapshots) // set_size):
@@ -405,44 +406,56 @@ def analyze_network(
     )
 
     plt.legend(title="Fuel Type")
-    plt.show()
+    render_graph(
+        scenario,
+        f"ERCOT Dispatch from {network.snapshots.min():%H:00 %m-%d-%Y} to {network.snapshots.max():%H:00 %m-%d-%Y}",
+    )
 
+    plt.clf()
     battery_gen = network.storage_units_t.p.loc[simulation_snapshots]
     battery_gen.sum(axis=1).head(24 * 7).plot(
         title="Net Battery Charge", ylabel="Net Charge MWs"
     )
-    plt.show()
+    render_graph(scenario, "Net Battery Charge")
 
-    if not committable:
+    if not scenario["simulation_params"]["committable"]:
         prices = network.buses_t.marginal_price.loc[simulation_snapshots]
         prices.plot(
             xlabel="Date",
             ylabel="Price ($/MWH)",
             title="Zonal Price for ERCOT Dispatch",
         )
-        plt.show()
+        render_graph(scenario, "Zonal Price for ERCOT Dispatch")
     else:
         print("No price output when the network has committable elements")
 
 
-def compare_fuel_mix():
+def compare_fuel_mix(scenario: Scenario):
     actual = pd.read_csv("2022_fuel_mix.csv", index_col="hour_ending").head(3 * 24)
     simulated = pd.read_csv("2022_jan_sim_plants.csv", index_col="snapshot")
     sum_merged = pd.concat(
         [actual.sum(axis=1), simulated.sum(axis=1)], join="inner", axis=1
     )
     sum_merged.plot()
-    plt.show()
+    render_graph(scenario, "Sub Merged 2022 Fuel Mix")
     actual.sub(simulated).dropna(axis=1).head(72).plot()
-    plt.show()
+    render_graph(scenario, "Actual 2022 Fuel Mix")
 
 
 if __name__ == "__main__":
-    analyze_network(
-        network_path="network.nc",
-        start="2022-01-01",
-        end="2022-01-07",
-        committable=False,
-        set_size=48,
-        overlap=2,
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--scenario")
+    args, leftovers = parser.parse_known_args()
+
+    if args.scenario is None:
+        print("Please provide a scenario to simulate like so:")
+        print("python ./main.py --scenario <path to scenario toml>")
+        exit(os.EX_NOINPUT)
+
+    if not isfile(args.scenario):
+        print("Invalid scenario path")
+        exit(os.EX_NOINPUT)
+
+    scenario: Scenario = toml.load(args.scenario)  # type:ignore
+    analyze_network(scenario)
+    exit(os.EX_OK)

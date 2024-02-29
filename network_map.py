@@ -3,88 +3,105 @@ from pypsa.plot import plt
 import cartopy.crs as ccrs
 import cartopy
 import matplotlib.patches as mpatches
+from dataclasses import dataclass
+
+from scenario import Scenario
+from utils import render_graph
 
 
-def draw_map_cartopy(ax, geomap=True, color_geomap=None):
-    resolution = "50m" if isinstance(geomap, bool) else geomap
-    assert resolution in [
-        "10m",
-        "50m",
-        "110m",
-    ], "Resolution has to be one of '10m', '50m', '110m'"
+@dataclass
+class CatppuccinLatte:
+    rosewater: str = "#dc8a78"
+    flamingo: str = "#dd7878"
+    pink: str = "#ea76cb"
+    mauve: str = "#8839ef"
+    red: str = "#d20f39"
+    maroon: str = "#e64553"
+    peach: str = "#fe640b"
+    yellow: str = "#df8e1d"
+    green: str = "#40a02b"
+    teal: str = "#179299"
+    sky: str = "#04a5e5"
+    sapphire: str = "#209fb5"
+    blue: str = "#1e66f5"
+    lavender: str = "#7287fd"
+    text: str = "#4c4f69"
+    subtext1: str = "#5c5f77"
+    subtext0: str = "#6c6f85"
+    overlay2: str = "#7c7f93"
+    overlay1: str = "#8c8fa1"
+    overlay0: str = "#9ca0b0"
+    surface2: str = "#acb0be"
+    surface1: str = "#bcc0cc"
+    surface0: str = "#ccd0da"
+    base: str = "#eff1f5"
+    mantle: str = "#e6e9ef"
+    crust: str = "#dce0e8"
 
-    if not color_geomap:
-        color_geomap = {}
-    elif not isinstance(color_geomap, dict):
-        color_geomap = {
-            "ocean": "lightblue",
-            "land": "whitesmoke",
-            "border": "darkgray",
-            "state": "lightgray",
-            "coastline": "black",
-        }
 
-    if "land" in color_geomap:
-        ax.add_feature(
-            cartopy.feature.LAND.with_scale(resolution), facecolor=color_geomap["land"]
-        )
-
-    if "ocean" in color_geomap:
-        ax.add_feature(
-            cartopy.feature.OCEAN.with_scale(resolution),
-            facecolor=color_geomap["ocean"],
-        )
+def draw_map_cartopy(ax):
+    resolution = "50m"
 
     ax.add_feature(
-        cartopy.feature.BORDERS.with_scale(resolution),
-        linewidth=0.7,
-        color=color_geomap.get("border", "k"),
+        cartopy.feature.LAND.with_scale(resolution),
+        facecolor=CatppuccinLatte.base,
+    )
+
+    ax.add_feature(
+        cartopy.feature.OCEAN.with_scale(resolution),
+        facecolor=CatppuccinLatte.sky,
     )
 
     ax.add_feature(
         cartopy.feature.STATES.with_scale(resolution),
+        linewidth=0.5,
+        edgecolor=CatppuccinLatte.overlay0,
+    )
+
+    ax.add_feature(
+        cartopy.feature.BORDERS.with_scale(resolution),
         linewidth=0.7,
-        edgecolor=color_geomap.get("state", "k"),
+        color=CatppuccinLatte.overlay1,
     )
 
     ax.add_feature(
         cartopy.feature.COASTLINE.with_scale(resolution),
-        linewidth=0.7,
-        color=color_geomap.get("coastline", "k"),
+        linewidth=0.9,
+        color=CatppuccinLatte.overlay2,
     )
 
 
-if __name__ == "__main__":
-    fig, ax = plt.subplots(subplot_kw={"projection": ccrs.PlateCarree()})
-    draw_map_cartopy(ax, True, True)
+def plot_network(scenario: Scenario, network: pypsa.Network):
+    _, ax = plt.subplots(subplot_kw={"projection": ccrs.PlateCarree()})
+    draw_map_cartopy(ax)
 
     network = pypsa.Network()
     network.import_from_netcdf(path="network.nc")
     gen = network.generators.groupby(["bus", "carrier"]).p_nom.sum()
 
     bus_colors = {
-        "dfo": "#c6a0f6",
-        "coal": "#ee99a0",
-        "gas": "#f5a97f",
-        "nuclear": "#a6da95",
-        "biomass": "#91d7e3",
-        "solar": "#8aadf4",
-        "wind": "#f0c6c6",
-        "other": "#7dc4e4",
-        "hydro": "#b7bdf8",
+        "dfo": CatppuccinLatte.rosewater,
+        "coal": CatppuccinLatte.flamingo,
+        "gas": CatppuccinLatte.pink,
+        "nuclear": CatppuccinLatte.mauve,
+        "biomass": CatppuccinLatte.red,
+        "solar": CatppuccinLatte.maroon,
+        "wind": CatppuccinLatte.peach,
+        "other": CatppuccinLatte.yellow,
+        "hydro": CatppuccinLatte.green,
     }
 
-    collection = network.plot(
-        ax=ax,
-        title="Open ERCOT Total Nodal Generation Capacity",
-        geomap=True,
+    network.plot(
+        title="openERCOT Total Nodal Generation Capacity",
+        geomap=False,
         bus_sizes=gen / 5e4,
-        bus_colors=bus_colors,
-        link_widths=2,
+        bus_colors=bus_colors,  # type: ignore
+        link_widths=1.0,
         margin=0.2,
-        link_colors="black",
-        color_geomap=True,
+        link_colors=CatppuccinLatte.text,
+        color_geomap=False,
     )
+
     handles = []
     for k, v in bus_colors.items():
         lab = "DFO" if k == "dfo" else k.title()
@@ -93,4 +110,4 @@ if __name__ == "__main__":
     ax.legend(handles=handles, loc="lower left")
 
     plt.tight_layout()
-    plt.show()
+    render_graph(scenario, "openERCOT Total Nodal Generation Capacity")

@@ -1,0 +1,10 @@
+[simulation_params]
+start_date = "2022-01-01"
+end_date = "2022-01-07"
+committable = false
+set_size = 48
+overlap = 2
+
+[io_params]
+network_path = "network.nc"
+graphs_to_file = true

@@ -1,6 +1,7 @@
 .idea/
 .ruff_cache/
 __pycache__/
+graphs/
 
 .env
 result
