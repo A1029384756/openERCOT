@@ -53,7 +53,7 @@ def draw_map_cartopy(ax, geomap=True, color_geomap=None):
     )
 
 
-fig, ax = plt.subplots(subplot_kw={"projection":ccrs.PlateCarree()})
+fig, ax = plt.subplots(subplot_kw={"projection": ccrs.PlateCarree()})
 draw_map_cartopy(ax, True, True)
 
 network = pypsa.Network()
