@@ -23,13 +23,13 @@ def build_params_units(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-            '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
-            + start
-            + '","end":"'
-            + end
-            + '","sort":[{"column":"period","direction":"desc"}],"offset":'
-            + str(offset)
-            + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
+        '{"frequency":"monthly","data":["county"],"facets":{"balancing_authority_code":["ERCO"]},"start":"'
+        + start
+        + '","end":"'
+        + end
+        + '","sort":[{"column":"period","direction":"desc"}],"offset":'
+        + str(offset)
+        + ',"length":5000, "data": [ "county", "nameplate-capacity-mw", "net-summer-capacity-mw", "net-winter-capacity-mw", "operating-year-month" ]}'
     )
 
 
@@ -42,18 +42,18 @@ def build_params_fuels(start: str, end: str, offset: int) -> str:
     :return: x-params as a string
     """
     return (
-            '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
-            + start
-            + '", "end": "'
-            + end
-            + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-            + str(offset)
-            + ', "length": 5000 }'
+        '{ "frequency": "monthly", "data": [ "cost-per-btu" ], "facets": { "location": [ "TX" ] }, "start": "'
+        + start
+        + '", "end": "'
+        + end
+        + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+        + str(offset)
+        + ', "length": 5000 }'
     )
 
 
 def build_params_generations(
-        start: str, end: str, plant_ids: List[str], offset: int
+    start: str, end: str, plant_ids: List[str], offset: int
 ) -> str:
     """
     builds x-params for eia fuels api call
@@ -64,15 +64,15 @@ def build_params_generations(
     :return: x-params as a string
     """
     return (
-            '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
-            + '", "'.join(plant_ids)
-            + '" ] }, "start": "'
-            + start
-            + '", "end": "'
-            + end
-            + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
-            + str(offset)
-            + ', "length": 5000 }'
+        '{ "frequency": "annual", "data": [ "total-consumption-btu", "generation" ], "facets": { "primeMover": ["ALL"], "fuel2002": ["ALL"], "plantCode": [ "'
+        + '", "'.join(plant_ids)
+        + '" ] }, "start": "'
+        + start
+        + '", "end": "'
+        + end
+        + '", "sort": [ { "column": "period", "direction": "desc" } ], "offset": '
+        + str(offset)
+        + ', "length": 5000 }'
     )
 
 
@@ -192,5 +192,7 @@ def get_battery_efficiency(start: str, end: str):
     df["gross-generation"] = pd.to_numeric(df["gross-generation"])
     df["consumption-for-eg"] = pd.to_numeric(df["consumption-for-eg"])
     summed = df.groupby("period")[["gross-generation", "consumption-for-eg"]].sum()
-    summed["efficiency"] = (summed["gross-generation"] / summed["consumption-for-eg"]) * 100
+    summed["efficiency"] = (
+        summed["gross-generation"] / summed["consumption-for-eg"]
+    ) * 100
     return summed
