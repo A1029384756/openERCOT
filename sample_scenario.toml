@@ -1,9 +1,9 @@
 [simulation_params]
 start_date = "2022-01-01"
-end_date = "2022-01-07"
+end_date = "2023-01-01"
 committable = false
-set_size = 48
-overlap = 2
+set_size = 672
+overlap = 24
 
 [io_params]
 network_path = "network.nc"

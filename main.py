@@ -2,6 +2,7 @@ import datetime
 import math
 import argparse
 import os
+import errno
 from os.path import isfile
 
 import pypsa
@@ -394,6 +395,10 @@ def analyze_network(scenario: Scenario):
     else:
         network.optimize(simulation_snapshots, solver_name="highs")
 
+    out_dir = scenario.get("out_dir")
+    if out_dir is not None:
+        network.export_to_netcdf(f"{out_dir}output-network.nc")
+
     generation = network.generators_t.p.loc[simulation_snapshots]
 
     grouped = generation.T.groupby(by=network.generators["carrier"]).sum().T
@@ -451,5 +456,16 @@ if __name__ == "__main__":
         exit(os.EX_NOINPUT)
 
     scenario = load_scenario(args.scenario)
+
+    out_dir = f"{os.getcwd()}/outputs-{scenario['simulation_params']['start_date']}-{scenario['simulation_params']['end_date']}/"
+    try:
+        os.makedirs(out_dir)
+    except OSError as e:
+        if e.errno == errno.EEXIST and os.path.isdir(out_dir):
+            pass
+        else:
+            raise
+    scenario["out_dir"] = out_dir
+
     analyze_network(scenario)
     exit(os.EX_OK)

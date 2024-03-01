@@ -12,6 +12,7 @@
         pkgs = import nixpkgs { inherit system; };
 
         commonArgs = with pkgs.python311Packages; [
+          jupyter
           numpy
           pandas
           python-dotenv

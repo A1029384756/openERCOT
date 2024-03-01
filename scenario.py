@@ -1,4 +1,4 @@
-from typing import TypedDict
+from typing import NotRequired, TypedDict
 
 
 class SimulationParams(TypedDict, total=True):
@@ -35,3 +35,4 @@ class Scenario(TypedDict, total=True):
 
     simulation_params: SimulationParams
     io_params: IOParams
+    out_dir: NotRequired[str]
