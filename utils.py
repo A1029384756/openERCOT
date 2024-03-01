@@ -3,7 +3,7 @@ import errno
 import matplotlib.pyplot as plt
 from pypsa.components import os
 from scenario import Scenario
-from typing import TypeVar, Any
+from typing import Any
 
 
 def render_graph(scenario: Scenario, name: str):
