@@ -12,8 +12,6 @@
         pkgs = import nixpkgs { inherit system; };
 
         commonArgs = with pkgs.python311Packages; [
-          ipython
-          jupyter
           numpy
           pandas
           python-dotenv
@@ -140,6 +138,7 @@
               pypsa
               highspy
               linopy
+              jupyter-all
             ] ++ commonArgs;
             packages = [
               pyright
