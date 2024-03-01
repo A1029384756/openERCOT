@@ -1,5 +1,7 @@
 from os import makedirs
+from os.path import isfile
 import errno
+import toml
 import matplotlib.pyplot as plt
 from pypsa.components import os
 from scenario import Scenario
@@ -44,3 +46,12 @@ def validate_dict(
             validate_dict(
                 data.get(field_name), field_type, field_type.__required_keys__
             )
+
+
+def load_scenario(path: str) -> Scenario:
+    if not isfile(path):
+        print("Invalid scenario path")
+        exit(os.EX_NOINPUT)
+    scenario: Scenario = toml.load(path)  # type:ignore
+    validate_dict(scenario, Scenario, Scenario.__required_keys__)
+    return scenario

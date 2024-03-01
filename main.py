@@ -1,8 +1,7 @@
 import datetime
 import math
-import os
-import toml
 import argparse
+import os
 from os.path import isfile
 
 import pypsa
@@ -20,7 +19,7 @@ from eia_data import (
 from ercot_data import get_all_ercot_data
 from network_map import plot_network
 from scenario import Scenario
-from utils import render_graph, validate_dict
+from utils import render_graph, load_scenario
 
 load_dotenv()
 
@@ -451,11 +450,6 @@ if __name__ == "__main__":
         print("python ./main.py --scenario <path to scenario toml>")
         exit(os.EX_NOINPUT)
 
-    if not isfile(args.scenario):
-        print("Invalid scenario path")
-        exit(os.EX_NOINPUT)
-
-    scenario: Scenario = toml.load(args.scenario)  # type:ignore
-    validate_dict(scenario, Scenario, Scenario.__required_keys__)
+    scenario = load_scenario(args.scenario)
     analyze_network(scenario)
     exit(os.EX_OK)
