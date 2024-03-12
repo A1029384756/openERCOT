@@ -1,3 +1,6 @@
+import datetime
+import io
+
 import pypsa
 from pypsa.plot import plt
 import cartopy.crs as ccrs
@@ -7,6 +10,7 @@ from dataclasses import dataclass
 
 from scenario import Scenario
 from utils import render_graph
+from PIL import Image
 
 
 @dataclass
@@ -111,3 +115,62 @@ def plot_network(scenario: Scenario, network: pypsa.Network):
 
     plt.tight_layout()
     render_graph(scenario, "openERCOT Total Nodal Generation Capacity")
+
+
+def plot_hour(network: pypsa.Network, snapshot: datetime.datetime):
+    _, ax = plt.subplots(subplot_kw={"projection": ccrs.PlateCarree()})
+    draw_map_cartopy(ax)
+
+    gen = network.generators.assign(g=network.generators_t.p.loc[snapshot]).groupby(["bus", "carrier"]).g.sum()
+
+    bus_colors = {
+        "dfo": CatppuccinLatte.rosewater,
+        "coal": CatppuccinLatte.flamingo,
+        "gas": CatppuccinLatte.pink,
+        "nuclear": CatppuccinLatte.mauve,
+        "biomass": CatppuccinLatte.red,
+        "solar": CatppuccinLatte.maroon,
+        "wind": CatppuccinLatte.peach,
+        "other": CatppuccinLatte.yellow,
+        "hydro": CatppuccinLatte.green,
+    }
+
+    network.plot(
+        title=f"openERCOT Nodal Dispatch by Type for {snapshot}",
+        geomap=False,
+        bus_sizes=gen / 5e4,
+        bus_colors=bus_colors,  # type: ignore
+        link_widths=.01,
+        margin=0.2,
+        link_colors=CatppuccinLatte.text,
+        color_geomap=False,
+        flow=snapshot
+    )
+
+    handles = []
+    for k, v in bus_colors.items():
+        lab = "DFO" if k == "dfo" else k.title()
+        handles.append(mpatches.Patch(color=v, label=lab))
+
+    ax.legend(handles=handles, loc="lower left")
+
+    plt.tight_layout()
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    return Image.open(buf)
+
+
+def plot_day(scenario: Scenario, network, day):
+    start_sim = datetime.datetime.strptime(day, "%Y-%m-%d")
+    end_sim = datetime.datetime.strptime(day, "%Y-%m-%d").replace(hour=23)
+
+    simulation_snapshots = network.snapshots[
+        network.snapshots.to_series().between(start_sim, end_sim)
+    ]
+
+    img, *imgs = [plot_hour(network, s) for s in simulation_snapshots]
+    out_dir = scenario.get("out_dir")
+    img.save(fp=f"{out_dir}OpenERCOT_Dispatch_{day}.gif", format='GIF', append_images=imgs, save_all=True, duration=200,
+             loop=0)
