@@ -140,7 +140,7 @@ def plot_hour(network: pypsa.Network, snapshot: datetime.datetime):
     }
 
     network.plot(
-        title=f"openERCOT Nodal Dispatch by Type for {snapshot}",
+        title=f"OpenERCOT Dispatch by Generator Type for {snapshot}",
         geomap=False,
         bus_sizes=gen / 5e4,
         bus_colors=bus_colors,  # type: ignore
