@@ -121,7 +121,11 @@ def plot_hour(network: pypsa.Network, snapshot: datetime.datetime):
     _, ax = plt.subplots(subplot_kw={"projection": ccrs.PlateCarree()})
     draw_map_cartopy(ax)
 
-    gen = network.generators.assign(g=network.generators_t.p.loc[snapshot]).groupby(["bus", "carrier"]).g.sum()
+    gen = (
+        network.generators.assign(g=network.generators_t.p.loc[snapshot])
+        .groupby(["bus", "carrier"])
+        .g.sum()
+    )
 
     bus_colors = {
         "dfo": CatppuccinLatte.rosewater,
@@ -140,11 +144,11 @@ def plot_hour(network: pypsa.Network, snapshot: datetime.datetime):
         geomap=False,
         bus_sizes=gen / 5e4,
         bus_colors=bus_colors,  # type: ignore
-        link_widths=.01,
+        link_widths=0.01,
         margin=0.2,
         link_colors=CatppuccinLatte.text,
         color_geomap=False,
-        flow=snapshot
+        flow=snapshot,
     )
 
     handles = []
@@ -157,7 +161,7 @@ def plot_hour(network: pypsa.Network, snapshot: datetime.datetime):
     plt.tight_layout()
 
     buf = io.BytesIO()
-    plt.savefig(buf, format='png')
+    plt.savefig(buf, format="png")
     buf.seek(0)
     return Image.open(buf)
 
@@ -172,5 +176,11 @@ def plot_day(scenario: Scenario, network, day):
 
     img, *imgs = [plot_hour(network, s) for s in simulation_snapshots]
     out_dir = scenario.get("out_dir")
-    img.save(fp=f"{out_dir}OpenERCOT_Dispatch_{day}.gif", format='GIF', append_images=imgs, save_all=True, duration=200,
-             loop=0)
+    img.save(
+        fp=f"{out_dir}OpenERCOT_Dispatch_{day}.gif",
+        format="GIF",
+        append_images=imgs,
+        save_all=True,
+        duration=200,
+        loop=0,
+    )
