@@ -25,61 +25,11 @@ from utils import render_graph, load_scenario
 load_dotenv()
 
 EIA_API_KEY = os.getenv("EIA_API_KEY")
-CEMS_API_KEY = os.getenv("CEMS_API_KEY")
 
 NETWORK_START = "2021-01"
 NETWORK_END = "2023-12"
 ROUND_TRIP_EFFICIENCY = 0.8
 
-
-def build_crosswalk() -> pd.DataFrame:
-    cross_url = "https://raw.githubusercontent.com/USEPA/camd-eia-crosswalk/master/epa_eia_crosswalk.csv"
-    crosswalk = pd.read_csv(
-        cross_url,
-        dtype={"EIA_PLANT_ID": pd.Int32Dtype(), "CAMD_PLANT_ID": pd.Int32Dtype()},
-    )
-    crosswalk = crosswalk[crosswalk["CAMD_STATE"] == "TX"]
-    crosswalk = crosswalk[
-        ["EIA_PLANT_ID", "EIA_GENERATOR_ID", "CAMD_PLANT_ID", "CAMD_UNIT_ID"]
-    ]
-    crosswalk.dropna(inplace=True)
-    return crosswalk
-
-
-def get_cems_data(year: int) -> pd.DataFrame:
-    headers = {
-        "accept": "application/json",
-        "x-api-key": CEMS_API_KEY,
-    }
-
-    params = {
-        "stateCode": "TX",
-        "year": year,
-        "page": "1",
-        "perPage": "500",
-    }
-
-    response = requests.get(
-        "https://api.epa.gov/easey/emissions-mgmt/emissions/apportioned/annual",
-        params=params,
-        headers=headers,
-    )
-
-    df = pd.DataFrame(response.json())
-    return df
-
-
-def build_emissions_data(year):
-    cross = build_crosswalk()
-    cems = get_cems_data(year)[["facilityId", "unitId", "so2Rate", "co2Rate", "noxRate"]]
-    cross["PYPSA_ID"] = cross["EIA_PLANT_ID"].astype(str) + "-" + cross["EIA_GENERATOR_ID"].astype(str)
-    cross.drop(["EIA_PLANT_ID", "EIA_GENERATOR_ID"], inplace=True, axis=1)
-    merged = cross.merge(cems,
-                         left_on=["CAMD_PLANT_ID", "CAMD_UNIT_ID"],
-                         right_on=["facilityId", "unitId"])
-    merged.drop(["CAMD_PLANT_ID", "CAMD_UNIT_ID", "facilityId", "unitId"], inplace=True, axis=1)
-    merged = merged.groupby("PYPSA_ID").mean()
-    return merged
 
 
 def build_heatrates_plant(start, end, plant_ids) -> pd.Series:

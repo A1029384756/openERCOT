@@ -1,8 +1,11 @@
 import datetime
 import io
+import os
 
 import pandas as pd
 import pypsa
+import requests
+from dotenv import load_dotenv
 from pypsa.plot import plt
 import cartopy.crs as ccrs
 import cartopy
@@ -12,6 +15,10 @@ from dataclasses import dataclass
 from scenario import Scenario
 from utils import render_graph
 from PIL import Image
+
+load_dotenv()
+
+CEMS_API_KEY = os.getenv("CEMS_API_KEY")
 
 
 @dataclass
@@ -237,3 +244,114 @@ def plot_year(scenario: Scenario, network: pypsa.Network, year: int):
         xlabel="Date", ylabel="Dispatch(MWHs)")
 
     render_graph(scenario, f"OpenERCOT_Weekly_Total_Storage_Dispatch_{year}")
+
+    plot_emissions(scenario, network, year)
+
+
+def get_cems_data(year: int) -> pd.DataFrame:
+    headers = {
+        "accept": "application/json",
+        "x-api-key": CEMS_API_KEY,
+    }
+
+    params = {
+        "stateCode": "TX",
+        "year": year,
+        "page": "1",
+        "perPage": "500",
+    }
+
+    response = requests.get(
+        "https://api.epa.gov/easey/emissions-mgmt/emissions/apportioned/annual",
+        params=params,
+        headers=headers,
+    )
+
+    df = pd.DataFrame(response.json())
+    return df
+
+
+def build_crosswalk() -> pd.DataFrame:
+    cross_url = "https://raw.githubusercontent.com/USEPA/camd-eia-crosswalk/master/epa_eia_crosswalk.csv"
+    crosswalk = pd.read_csv(
+        cross_url,
+        dtype={"EIA_PLANT_ID": pd.Int32Dtype(), "CAMD_PLANT_ID": pd.Int32Dtype()},
+    )
+    crosswalk = crosswalk[crosswalk["CAMD_STATE"] == "TX"]
+    crosswalk = crosswalk[
+        ["EIA_PLANT_ID", "EIA_GENERATOR_ID", "CAMD_PLANT_ID", "CAMD_UNIT_ID"]
+    ]
+    crosswalk.dropna(inplace=True)
+    return crosswalk
+
+
+def build_emissions_data(year):
+    cross = build_crosswalk()
+    cems = get_cems_data(year)[["facilityId", "unitId", "so2Rate", "co2Rate", "noxRate"]]
+    cross["PYPSA_ID"] = cross["EIA_PLANT_ID"].astype(str) + "-" + cross["EIA_GENERATOR_ID"].astype(str)
+    cross.drop(["EIA_PLANT_ID", "EIA_GENERATOR_ID"], inplace=True, axis=1)
+    merged = cross.merge(cems,
+                         left_on=["CAMD_PLANT_ID", "CAMD_UNIT_ID"],
+                         right_on=["facilityId", "unitId"])
+    merged.drop(["CAMD_PLANT_ID", "CAMD_UNIT_ID", "facilityId", "unitId"], inplace=True, axis=1)
+    merged = merged.groupby("PYPSA_ID").mean()
+    return merged
+
+
+def plot_emissions(scenario: Scenario, network: pypsa.Network, year: int):
+    # collect emissions data for the year
+    emissions = build_emissions_data(year)
+
+    # build dataframe with emissions data
+    gen_ems = pd.concat([network.generators, emissions], axis=1)
+
+    # fild mean rates for missing data
+    default_rates = gen_ems.groupby("type")[["so2Rate", "co2Rate", "noxRate"]].mean().dropna()
+
+    # calculate unique technologies
+    em_techs = default_rates.index.unique()
+
+    # filter to just technologies we have coverage over
+    gen_ems = gen_ems[gen_ems["type"].isin(em_techs)]
+
+    # filter to the year under question
+    start_year = datetime.datetime.strptime(f"{year}-01-01", "%Y-%m-%d")
+    end_year = datetime.datetime.strptime(f"{year}-12-31", "%Y-%m-%d").replace(hour=23)
+
+    simulation_snapshots = network.snapshots[
+        network.snapshots.to_series().between(start_year, end_year)
+    ]
+
+    # find the generation
+    generation = network.generators_t.p.loc[simulation_snapshots]
+
+    # resample to monthly generation
+    monthly_gen = generation.groupby(pd.Grouper(freq="M")).sum()
+
+    # fix naming of the indexes
+    monthly_gen.index = pd.to_datetime(monthly_gen.index).month_name()
+
+    # merge monthly gen with the rates
+    merged = pd.concat([gen_ems, monthly_gen.T], axis=1, join="inner")
+
+    # fill in missing rows
+    for row in default_rates.iterrows():
+        merged.loc[merged["type"] == row[0]] = merged.loc[merged["type"] == row[0]].fillna(row[1].to_dict())
+
+    # plot data
+    # consider adding rates in addition to absolute emissions
+    co2 = merged.iloc[:, -12:].mul(merged["co2Rate"], axis="index").sum()
+    co2.plot.bar(title=f"Monthly Estimated CO2 Emissions for {year}",
+                 ylabel="CO2 Mass(Short Tons)")
+    plt.tight_layout()
+    render_graph(scenario, f"OpenERCOT_Monthly_CO2_{year}")
+    nox = merged.iloc[:, -12:].mul(merged["noxRate"], axis="index").sum()
+    nox.plot.bar(title=f"Monthly Estimated NOX Emissions for {year}",
+                 ylabel="NOX Mass(Short Tons)")
+    plt.tight_layout()
+    render_graph(scenario, f"OpenERCOT_Monthly_NOX_{year}")
+    so2 = merged.iloc[:, -12:].mul(merged["so2Rate"], axis="index").sum()
+    so2.plot.bar(title=f"Monthly Estimated SO2 Emissions for {year}",
+                 ylabel="SO2 Mass(Short Tons)")
+    plt.tight_layout()
+    render_graph(scenario, f"OpenERCOT_Monthly_SO2_{year}")
