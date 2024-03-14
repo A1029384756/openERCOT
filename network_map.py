@@ -1,6 +1,7 @@
 import datetime
 import io
 
+import pandas as pd
 import pypsa
 from pypsa.plot import plt
 import cartopy.crs as ccrs
@@ -166,7 +167,7 @@ def plot_hour(network: pypsa.Network, snapshot: datetime.datetime):
     return Image.open(buf)
 
 
-def plot_day(scenario: Scenario, network, day):
+def plot_day(scenario: Scenario, network: pypsa.Network, day):
     start_sim = datetime.datetime.strptime(day, "%Y-%m-%d")
     end_sim = datetime.datetime.strptime(day, "%Y-%m-%d").replace(hour=23)
 
@@ -184,3 +185,24 @@ def plot_day(scenario: Scenario, network, day):
         duration=200,
         loop=0,
     )
+
+
+def plot_year(scenario: Scenario, network: pypsa.Network, year: int):
+    start_year = datetime.datetime.strptime(f"{year}-01-01", "%Y-%m-%d")
+    end_year = datetime.datetime.strptime(f"{year}-12-31", "%Y-%m-%d").replace(hour=23)
+
+    simulation_snapshots = network.snapshots[
+        network.snapshots.to_series().between(start_year, end_year)
+    ]
+
+    generation = network.generators_t.p.loc[simulation_snapshots]
+
+    monthly_gen = pd.concat([network.generators, generation.groupby(pd.Grouper(freq="M")).sum().T], axis=1).groupby(
+        "carrier").sum().iloc[:, -12:].T
+    monthly_gen.index = pd.to_datetime(monthly_gen.index).month_name()
+    monthly_gen.columns = ["DFO" if gen == "dfo" else gen.title() for gen in monthly_gen.columns]
+    monthly_gen.plot.bar(stacked=True, title=f"Monthly Generation in ERCOT by Fuel Type in {year}",
+                         ylabel="Generation(MWHs)")
+    plt.tight_layout()
+    plt.legend(loc='upper left')
+    render_graph(scenario, f"OpenERCOT_Monthly_Gen_{year}")
