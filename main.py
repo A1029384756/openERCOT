@@ -69,19 +69,18 @@ def get_cems_data(year: int) -> pd.DataFrame:
     return df
 
 
-def build_heatrates_unit(year) -> pd.DataFrame:
+def build_emissions_data(year):
     cross = build_crosswalk()
-    cems = get_cems_data(year)
-    merged = cems.merge(
-        cross,
-        left_on=["facilityId", "unitId"],
-        right_on=["CAMD_PLANT_ID", "CAMD_UNIT_ID"],
-        how="inner",
-    )
-    merged["heatRate"] = merged["heatInput"] / merged["grossLoad"]
-    merged = merged[~merged["heatRate"].isna()]
-    merged.drop_duplicates(subset=["EIA_PLANT_ID", "EIA_GENERATOR_ID"], inplace=True)
-    return merged[["EIA_PLANT_ID", "EIA_GENERATOR_ID", "heatRate"]]
+    cems = get_cems_data(year)[["facilityId", "unitId", "so2Rate", "co2Rate", "noxRate"]]
+    cross["PYPSA_ID"] = cross["EIA_PLANT_ID"].astype(str) + "-" + cross["EIA_GENERATOR_ID"].astype(str)
+    cross.drop(["EIA_PLANT_ID", "EIA_GENERATOR_ID"], inplace=True, axis=1)
+    merged = cross.merge(cems,
+                         left_on=["CAMD_PLANT_ID", "CAMD_UNIT_ID"],
+                         right_on=["facilityId", "unitId"])
+    merged.drop(["CAMD_PLANT_ID", "CAMD_UNIT_ID", "facilityId", "unitId"], inplace=True, axis=1)
+    merged = merged.groupby("PYPSA_ID").mean()
+    merged.set_index("PYPSA_ID", inplace=True)
+    return merged
 
 
 def build_heatrates_plant(start, end, plant_ids) -> pd.Series:
@@ -197,9 +196,9 @@ def build_network(start: str, end: str) -> pypsa.Network:
             )
         else:
             if unit["technology"] in (
-                "Solar Photovoltaic",
-                "Onshore Wind Turbine",
-                "Conventional Hydroelectric",
+                    "Solar Photovoltaic",
+                    "Onshore Wind Turbine",
+                    "Conventional Hydroelectric",
             ):
                 all_caps.append(
                     pd.Series(
@@ -290,23 +289,23 @@ def build_network(start: str, end: str) -> pypsa.Network:
                     caps = []
 
                     for month, snapshot_chunk in network.snapshots.to_series().groupby(
-                        pd.Grouper(freq="M")
+                            pd.Grouper(freq="M")
                     ):
                         fuel_index = f"{month.year}-{month.month:02}"
 
                         if (
-                            td(unit["first_op_month"])
-                            <= td(month)
-                            <= td(unit["last_op_month"])
+                                td(unit["first_op_month"])
+                                <= td(month)
+                                <= td(unit["last_op_month"])
                         ):
                             operating = 1
                             try:
                                 bid = (
-                                    fuel_prices.loc[
-                                        fuel_index, unit["energy_source_code"]
-                                    ]
-                                    * heat_rate
-                                ) + float(assumptions.loc[unit["technology"], "vom"])
+                                              fuel_prices.loc[
+                                                  fuel_index, unit["energy_source_code"]
+                                              ]
+                                              * heat_rate
+                                      ) + float(assumptions.loc[unit["technology"], "vom"])
 
                             except KeyError:
                                 print(
@@ -381,13 +380,13 @@ def analyze_network(scenario: Scenario):
     if set_size > 0:
         # simulate the chunks
         for i in range(len(simulation_snapshots) // set_size):
-            chunk = simulation_snapshots[i * set_size : (i + 1) * set_size + overlap]
+            chunk = simulation_snapshots[i * set_size: (i + 1) * set_size + overlap]
             print(f"Simulating {chunk[0]} to {chunk[-1]} with length {len(chunk)}")
             network.optimize(chunk, solver_name="highs")
 
         # simulate any extra snapshots not caught in chunks
         if len(simulation_snapshots) % set_size != 0:
-            chunk = simulation_snapshots[-(len(simulation_snapshots) % set_size) :]
+            chunk = simulation_snapshots[-(len(simulation_snapshots) % set_size):]
             print(
                 f"Simulating extra chunk from {chunk[0]} to {chunk[-1]} with length {len(chunk)}"
             )
@@ -446,6 +445,8 @@ def compare_fuel_mix(scenario: Scenario):
 
 
 if __name__ == "__main__":
+    build_emissions_data(2022)
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario")
     args, leftovers = parser.parse_known_args()
