@@ -224,7 +224,9 @@ def plot_year(scenario: Scenario, network: pypsa.Network, year: int):
 
     weekly_average_price.plot(
         title=f"Weekly Average Marginal Cost per Buses in {year}",
-        xlabel="Date", ylabel="Marginal Cost(Dollars)")
+        xlabel="Date",
+        ylabel="Marginal Cost(Dollars)",
+    )
 
     render_graph(scenario, f"OpenERCOT_Weekly_Average_Price_{year}")
 
