@@ -197,14 +197,27 @@ def plot_year(scenario: Scenario, network: pypsa.Network, year: int):
 
     generation = network.generators_t.p.loc[simulation_snapshots]
 
-    monthly_gen = pd.concat([network.generators, generation.groupby(pd.Grouper(freq="M")).sum().T], axis=1).groupby(
-        "carrier").sum().iloc[:, -12:].T
+    monthly_gen = (
+        pd.concat(
+            [network.generators, generation.groupby(pd.Grouper(freq="M")).sum().T],
+            axis=1,
+        )
+        .groupby("carrier")
+        .sum()
+        .iloc[:, -12:]
+        .T
+    )
     monthly_gen.index = pd.to_datetime(monthly_gen.index).month_name()
-    monthly_gen.columns = ["DFO" if gen == "dfo" else gen.title() for gen in monthly_gen.columns]
-    monthly_gen.plot.bar(stacked=True, title=f"Monthly Generation in ERCOT by Fuel Type in {year}",
-                         ylabel="Generation(MWHs)")
+    monthly_gen.columns = [
+        "DFO" if gen == "dfo" else gen.title() for gen in monthly_gen.columns
+    ]
+    monthly_gen.plot.bar(
+        stacked=True,
+        title=f"Monthly Generation in ERCOT by Fuel Type in {year}",
+        ylabel="Generation(MWHs)",
+    )
     plt.tight_layout()
-    plt.legend(loc='upper left')
+    plt.legend(loc="upper left")
     render_graph(scenario, f"OpenERCOT_Monthly_Gen_{year}")
 
     network.buses_t.marginal_price.loc[simulation_snapshots].resample("W").mean().plot(
