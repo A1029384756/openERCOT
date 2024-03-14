@@ -227,7 +227,9 @@ def plot_year(scenario: Scenario, network: pypsa.Network, year: int):
     plt.legend(loc="upper left")
     render_graph(scenario, f"OpenERCOT_Monthly_Gen_{year}")
 
-    weekly_average_price = network.buses_t.marginal_price.loc[simulation_snapshots].resample("W").mean()
+    weekly_average_price = (
+        network.buses_t.marginal_price.loc[simulation_snapshots].resample("W").mean()
+    )
 
     weekly_average_price.plot(
         title=f"Weekly Average Marginal Cost per Buses in {year}",
@@ -237,11 +239,19 @@ def plot_year(scenario: Scenario, network: pypsa.Network, year: int):
 
     render_graph(scenario, f"OpenERCOT_Weekly_Average_Price_{year}")
 
-    weekly_total_storage = network.storage_units_t.p.loc[simulation_snapshots].clip(0).sum(axis=1).resample("W").sum()
+    weekly_total_storage = (
+        network.storage_units_t.p.loc[simulation_snapshots]
+        .clip(0)
+        .sum(axis=1)
+        .resample("W")
+        .sum()
+    )
 
     weekly_total_storage.plot(
         title=f"Weekly Total Storage Dispatch in {year}",
-        xlabel="Date", ylabel="Dispatch(MWHs)")
+        xlabel="Date",
+        ylabel="Dispatch(MWHs)",
+    )
 
     render_graph(scenario, f"OpenERCOT_Weekly_Total_Storage_Dispatch_{year}")
 
