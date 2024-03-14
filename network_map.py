@@ -297,13 +297,21 @@ def build_crosswalk() -> pd.DataFrame:
 
 def build_emissions_data(year):
     cross = build_crosswalk()
-    cems = get_cems_data(year)[["facilityId", "unitId", "so2Rate", "co2Rate", "noxRate"]]
-    cross["PYPSA_ID"] = cross["EIA_PLANT_ID"].astype(str) + "-" + cross["EIA_GENERATOR_ID"].astype(str)
+    cems = get_cems_data(year)[
+        ["facilityId", "unitId", "so2Rate", "co2Rate", "noxRate"]
+    ]
+    cross["PYPSA_ID"] = (
+        cross["EIA_PLANT_ID"].astype(str) + "-" + cross["EIA_GENERATOR_ID"].astype(str)
+    )
     cross.drop(["EIA_PLANT_ID", "EIA_GENERATOR_ID"], inplace=True, axis=1)
-    merged = cross.merge(cems,
-                         left_on=["CAMD_PLANT_ID", "CAMD_UNIT_ID"],
-                         right_on=["facilityId", "unitId"])
-    merged.drop(["CAMD_PLANT_ID", "CAMD_UNIT_ID", "facilityId", "unitId"], inplace=True, axis=1)
+    merged = cross.merge(
+        cems,
+        left_on=["CAMD_PLANT_ID", "CAMD_UNIT_ID"],
+        right_on=["facilityId", "unitId"],
+    )
+    merged.drop(
+        ["CAMD_PLANT_ID", "CAMD_UNIT_ID", "facilityId", "unitId"], inplace=True, axis=1
+    )
     merged = merged.groupby("PYPSA_ID").mean()
     return merged
 
@@ -316,7 +324,9 @@ def plot_emissions(scenario: Scenario, network: pypsa.Network, year: int):
     gen_ems = pd.concat([network.generators, emissions], axis=1)
 
     # fild mean rates for missing data
-    default_rates = gen_ems.groupby("type")[["so2Rate", "co2Rate", "noxRate"]].mean().dropna()
+    default_rates = (
+        gen_ems.groupby("type")[["so2Rate", "co2Rate", "noxRate"]].mean().dropna()
+    )
 
     # calculate unique technologies
     em_techs = default_rates.index.unique()
@@ -346,22 +356,30 @@ def plot_emissions(scenario: Scenario, network: pypsa.Network, year: int):
 
     # fill in missing rows
     for row in default_rates.iterrows():
-        merged.loc[merged["type"] == row[0]] = merged.loc[merged["type"] == row[0]].fillna(row[1].to_dict())
+        merged.loc[merged["type"] == row[0]] = merged.loc[
+            merged["type"] == row[0]
+        ].fillna(row[1].to_dict())
 
     # plot data
     # consider adding rates in addition to absolute emissions
     co2 = merged.iloc[:, -12:].mul(merged["co2Rate"], axis="index").sum()
-    co2.plot.bar(title=f"Monthly Estimated CO2 Emissions for {year}",
-                 ylabel="CO2 Mass(Short Tons)")
+    co2.plot.bar(
+        title=f"Monthly Estimated CO2 Emissions for {year}",
+        ylabel="CO2 Mass(Short Tons)",
+    )
     plt.tight_layout()
     render_graph(scenario, f"OpenERCOT_Monthly_CO2_{year}")
     nox = merged.iloc[:, -12:].mul(merged["noxRate"], axis="index").sum()
-    nox.plot.bar(title=f"Monthly Estimated NOX Emissions for {year}",
-                 ylabel="NOX Mass(Short Tons)")
+    nox.plot.bar(
+        title=f"Monthly Estimated NOX Emissions for {year}",
+        ylabel="NOX Mass(Short Tons)",
+    )
     plt.tight_layout()
     render_graph(scenario, f"OpenERCOT_Monthly_NOX_{year}")
     so2 = merged.iloc[:, -12:].mul(merged["so2Rate"], axis="index").sum()
-    so2.plot.bar(title=f"Monthly Estimated SO2 Emissions for {year}",
-                 ylabel="SO2 Mass(Short Tons)")
+    so2.plot.bar(
+        title=f"Monthly Estimated SO2 Emissions for {year}",
+        ylabel="SO2 Mass(Short Tons)",
+    )
     plt.tight_layout()
     render_graph(scenario, f"OpenERCOT_Monthly_SO2_{year}")
