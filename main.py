@@ -79,7 +79,6 @@ def build_emissions_data(year):
                          right_on=["facilityId", "unitId"])
     merged.drop(["CAMD_PLANT_ID", "CAMD_UNIT_ID", "facilityId", "unitId"], inplace=True, axis=1)
     merged = merged.groupby("PYPSA_ID").mean()
-    merged.set_index("PYPSA_ID", inplace=True)
     return merged
 
 
@@ -445,8 +444,6 @@ def compare_fuel_mix(scenario: Scenario):
 
 
 if __name__ == "__main__":
-    build_emissions_data(2022)
-
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario")
     args, leftovers = parser.parse_known_args()
