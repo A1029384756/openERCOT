@@ -358,28 +358,28 @@ def plot_emissions(scenario: Scenario, network: pypsa.Network, year: int):
     for row in default_rates.iterrows():
         merged.loc[merged["type"] == row[0]] = merged.loc[
             merged["type"] == row[0]
-        ].fillna(row[1].to_dict())
+            ].fillna(row[1].to_dict())
 
     # plot data
     # consider adding rates in addition to absolute emissions
     co2 = merged.iloc[:, -12:].mul(merged["co2Rate"], axis="index").sum()
-    co2.plot.bar(
-        title=f"Monthly Estimated CO2 Emissions for {year}",
-        ylabel="CO2 Mass(Short Tons)",
+    emissions = pd.concat([nox, co2, so2], axis=1)
+    emissions.columns = ["NOX", "CO2", "SO2"]
+    emissions.plot.bar(
+        title=f"Monthly Estimated Emissions for {year}",
+        ylabel="Emissions Mass(Short Tons)",
     )
     plt.tight_layout()
-    render_graph(scenario, f"OpenERCOT_Monthly_CO2_{year}")
-    nox = merged.iloc[:, -12:].mul(merged["noxRate"], axis="index").sum()
-    nox.plot.bar(
-        title=f"Monthly Estimated NOX Emissions for {year}",
-        ylabel="NOX Mass(Short Tons)",
+    render_graph(scenario, f"OpenERCOT_Monthly_Emissions_{year}")
+
+    so2_rate = so2 / merged.iloc[:, -12:].sum()
+    nox_rate = nox / merged.iloc[:, -12:].sum()
+    co2_rate = co2 / merged.iloc[:, -12:].sum()
+    emissions_rate = pd.concat([nox_rate, co2_rate, so2_rate], axis=1)
+    emissions_rate.columns = ["NOX", "CO2", "SO2"]
+    emissions_rate.plot.bar(
+        title=f"Monthly Estimated Emissions Rate for {year}",
+        ylabel="Emissions Rate(Short Tons/MWH)",
     )
     plt.tight_layout()
-    render_graph(scenario, f"OpenERCOT_Monthly_NOX_{year}")
-    so2 = merged.iloc[:, -12:].mul(merged["so2Rate"], axis="index").sum()
-    so2.plot.bar(
-        title=f"Monthly Estimated SO2 Emissions for {year}",
-        ylabel="SO2 Mass(Short Tons)",
-    )
-    plt.tight_layout()
-    render_graph(scenario, f"OpenERCOT_Monthly_SO2_{year}")
+    render_graph(scenario, f"OpenERCOT_Monthly_Emissions_Rate_{year}")
