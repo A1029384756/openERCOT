@@ -358,7 +358,7 @@ def plot_emissions(scenario: Scenario, network: pypsa.Network, year: int):
     for row in default_rates.iterrows():
         merged.loc[merged["type"] == row[0]] = merged.loc[
             merged["type"] == row[0]
-            ].fillna(row[1].to_dict())
+        ].fillna(row[1].to_dict())
 
     # plot data
     # consider adding rates in addition to absolute emissions
