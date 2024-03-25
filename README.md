@@ -9,7 +9,6 @@
         Open source power modeling and grid analysis.
     </p>
 
-    <img src="images/dispatch.gif" alt="Dispatch" width="320" height="240">
 </div>
 
 
