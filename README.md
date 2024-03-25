@@ -14,12 +14,6 @@ Open source power modeling and grid analysis.
 
 openERCOT is a powerful grid simulation toolkit that has been used to simulate the ERCOT grid.
 
-
-## Getting Started
-
-This is an example of how you may give instructions on setting up your project locally.
-To get a local copy up and running follow these simple example steps.
-
 ### Prerequisites
 
 There is only one prerequisite to be able to use openERCOT and it will handle the rest for you.
