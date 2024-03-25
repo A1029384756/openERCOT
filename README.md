@@ -1,19 +1,20 @@
 <a name="readme-top"></a>
 
-[![Issues][issues-shield]][issues-url]
-[![GPLv3 License][license-shield]][license-url]
-
 <br />
 <div align="center">
-  <a href="https://github.com/A1029384756/openERCOT">
-    <img src="images/logo.png" alt="Logo" width="80" height="80">
-  </a>
+    <a href="https://github.com/A1029384756/openERCOT">
+        <img src="images/logo.png" alt="Logo" width="120" height="120">
+    </a>
 
-  <h3 align="center">openERCOT</h3>
+    <h3 align="center">openERCOT</h3>
 
-  <p align="center">
-    Open source power modeling and grid analysis.
-  </p>
+    <p align="center">
+        Open source power modeling and grid analysis.
+    </p>
+
+    <a href="https://github.com/A1029384756/openERCOT">
+        <img src="images/dispatch.gif" alt="Dispatch" width="320" height="240">
+    </a>
 </div>
 
 
