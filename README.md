@@ -36,8 +36,8 @@ There is only one prerequisite to be able to use openERCOT and it will handle th
    ```
 4. Enter your API keys in `.env` at the root of the project
    ```js
-   EIA_API_KEY = 'ENTER YOUR API';
-   CEMS_API_KEY = 'ENTER YOUR API';
+   EIA_API_KEY = 'ENTER YOUR API'
+   CEMS_API_KEY = 'ENTER YOUR API'
    ```
 
 
