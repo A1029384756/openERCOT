@@ -1,9 +1,12 @@
 <a name="readme-top"></a>
 
 # openERCOT
-![Logo](https://github.com/A1029384756/openERCOT/images/logo.png)
+
+![Logo](images/logo.png)
+
 Open source power modeling and grid analysis.
-![Dispatch](https://github.com/A1029384756/openERCOT/images/dispatch.gif)
+
+![Dispatch](images/dispatch.gif)
 
 --- 
 
