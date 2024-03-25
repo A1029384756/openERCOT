@@ -1,6 +1,5 @@
 <a name="readme-top"></a>
 
-<br />
 <div align="center">
     <a href="https://github.com/A1029384756/openERCOT">
         <img src="images/logo.png" alt="Logo" width="120" height="120">
