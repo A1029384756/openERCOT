@@ -1,9 +1,7 @@
 <a name="readme-top"></a>
 
 <div align="center">
-    <a href="https://github.com/A1029384756/openERCOT">
-        <img src="images/logo.png" alt="Logo" width="120" height="120">
-    </a>
+    <img src="images/logo.png" alt="Logo" width="120" height="120">
 
     <h3 align="center">openERCOT</h3>
 
@@ -11,9 +9,7 @@
         Open source power modeling and grid analysis.
     </p>
 
-    <a href="https://github.com/A1029384756/openERCOT">
-        <img src="images/dispatch.gif" alt="Dispatch" width="320" height="240">
-    </a>
+    <img src="images/dispatch.gif" alt="Dispatch" width="320" height="240">
 </div>
 
 
