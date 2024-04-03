@@ -7,18 +7,14 @@ from os.path import isfile
 
 import pypsa
 import pandas as pd
-import requests
 from dotenv import load_dotenv
 from matplotlib import pyplot as plt
+import mplcatppuccin
 
-from eia_data import (
-    get_eia_unit_generation,
-    get_eia_unit_data,
-    get_fuel_costs,
-    get_battery_efficiency,
-)
+from eia_data import get_eia_unit_generation, get_eia_unit_data, get_fuel_costs
+
 from ercot_data import get_all_ercot_data
-from network_map import plot_network
+from network_map import plot_network, plot_year
 from scenario import Scenario
 from utils import render_graph, load_scenario
 
@@ -393,6 +389,7 @@ def compare_fuel_mix(scenario: Scenario):
 
 
 if __name__ == "__main__":
+    plt.style.use("mocha")
     parser = argparse.ArgumentParser()
     parser.add_argument("--scenario")
     args, leftovers = parser.parse_known_args()

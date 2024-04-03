@@ -43,6 +43,20 @@
           cartopy
         ];
 
+        catppuccin_matplotlib = pkgs.python311Packages.buildPythonPackage rec {
+          pname = "catppuccin-matplotlib";
+          version = "0.4";
+          format = "pyproject";
+
+          src = pkgs.python311Packages.fetchPypi {
+            inherit pname version;
+            hash = "sha256-c2iAqlazWRiW9EOAWM40hKsgctICVeISN8oM21DCFNY=";
+          };
+
+          propagatedBuildInputs = with pkgs.python3Packages; [ setuptools ];
+        };
+
+
         linopy = pkgs.python311Packages.buildPythonPackage rec {
           pname = "linopy";
           version = "0.2.6";
@@ -107,7 +121,7 @@
             hash = "sha256-uq/ZAF9InBNU4HBKKTLZPZJUyxBoDet70cIkCOCvw9w=";
           };
 
-          propagatedBuildInputs = commonArgs ++ [ pandera linopy highspy ];
+          propagatedBuildInputs = commonArgs ++ [ linopy highspy ];
         };
 
         pandera = pkgs.python311Packages.buildPythonPackage rec {
@@ -126,6 +140,8 @@
         pyEnv = pkgs.python311.withPackages (ps:
           with pkgs.python311Packages;
           [
+            catppuccin_matplotlib
+            pandera
             pypsa
           ]);
       in
@@ -135,9 +151,7 @@
         devShells = {
           default = mkShell {
             buildInputs = [
-              pypsa
-              highspy
-              linopy
+              pyEnv
               jupyter-all
             ] ++ commonArgs;
             packages = [
