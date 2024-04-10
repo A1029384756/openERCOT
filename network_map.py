@@ -166,27 +166,32 @@ def plot_hour(network: pypsa.Network, snapshot: datetime.datetime):
     )
 
     bus_colors = {
-        "dfo": CatppuccinLatte.rosewater,
-        "coal": CatppuccinLatte.flamingo,
-        "gas": CatppuccinLatte.pink,
-        "nuclear": CatppuccinLatte.mauve,
-        "biomass": CatppuccinLatte.red,
-        "solar": CatppuccinLatte.maroon,
-        "wind": CatppuccinLatte.peach,
-        "other": CatppuccinLatte.yellow,
-        "hydro": CatppuccinLatte.green,
+        "dfo": CatppuccinMocha.rosewater,
+        "coal": CatppuccinMocha.flamingo,
+        "gas": CatppuccinMocha.pink,
+        "nuclear": CatppuccinMocha.mauve,
+        "biomass": CatppuccinMocha.red,
+        "solar": CatppuccinMocha.maroon,
+        "wind": CatppuccinMocha.peach,
+        "other": CatppuccinMocha.yellow,
+        "hydro": CatppuccinMocha.green,
     }
+
+    links_color = [CatppuccinMocha.red if link_max == abs(link) else CatppuccinMocha.text for link_max, link in
+                   zip(network.links.p_nom, network.links_t.p0.loc[snapshot])]
+
+    link_flow = pd.Series(network.links_t.p0.loc[snapshot].values, index=network.branches().index)
 
     network.plot(
         title=f"OpenERCOT Dispatch by Generator Type for {snapshot}",
         geomap=False,
         bus_sizes=gen / 5e4,
         bus_colors=bus_colors,  # type: ignore
-        link_widths=0.01,
+        link_widths=1,
         margin=0.2,
-        link_colors=CatppuccinLatte.text,
+        link_colors=pd.Series(index=network.links.index, data=links_color),
         color_geomap=False,
-        flow=snapshot,
+        flow=link_flow / 150,
     )
 
     handles = []
@@ -199,7 +204,7 @@ def plot_hour(network: pypsa.Network, snapshot: datetime.datetime):
     plt.tight_layout()
 
     buf = io.BytesIO()
-    plt.savefig(buf, format="png")
+    plt.savefig(buf, format="png", dpi=300)
     buf.seek(0)
     return Image.open(buf)
 
@@ -257,6 +262,14 @@ def plot_year(scenario: Scenario, network: pypsa.Network, year: int):
     plt.legend(loc="upper left")
     render_graph(scenario, f"OpenERCOT_Monthly_Gen_{year}")
 
+    gen_share = (monthly_gen.T / monthly_gen.sum(axis=1)).T * 100
+    gen_share.plot.bar(stacked=True,
+                       title=f"Monthly Generation Share in ERCOT by Fuel Type in {year}",
+                       ylabel="Percentage of Generation"
+                       )
+    plt.tight_layout()
+    render_graph(scenario, f"OpenERCOT_Monthly_Gen_Share_{year}")
+
     weekly_average_price = (
         network.buses_t.marginal_price.loc[simulation_snapshots].resample("W").mean()
     )
@@ -267,6 +280,7 @@ def plot_year(scenario: Scenario, network: pypsa.Network, year: int):
         ylabel="Marginal Cost(Dollars)",
     )
 
+    plt.tight_layout()
     render_graph(scenario, f"OpenERCOT_Weekly_Average_Price_{year}")
 
     weekly_total_storage = (
@@ -283,6 +297,7 @@ def plot_year(scenario: Scenario, network: pypsa.Network, year: int):
         ylabel="Dispatch(MWHs)",
     )
 
+    plt.tight_layout()
     render_graph(scenario, f"OpenERCOT_Weekly_Total_Storage_Dispatch_{year}")
 
     plot_emissions(scenario, network, year)
@@ -331,7 +346,7 @@ def build_emissions_data(year):
         ["facilityId", "unitId", "so2Rate", "co2Rate", "noxRate"]
     ]
     cross["PYPSA_ID"] = (
-        cross["EIA_PLANT_ID"].astype(str) + "-" + cross["EIA_GENERATOR_ID"].astype(str)
+            cross["EIA_PLANT_ID"].astype(str) + "-" + cross["EIA_GENERATOR_ID"].astype(str)
     )
     cross.drop(["EIA_PLANT_ID", "EIA_GENERATOR_ID"], inplace=True, axis=1)
     merged = cross.merge(
@@ -388,10 +403,10 @@ def plot_emissions(scenario: Scenario, network: pypsa.Network, year: int):
     for row in default_rates.iterrows():
         merged.loc[merged["type"] == row[0]] = merged.loc[
             merged["type"] == row[0]
-        ].fillna(row[1].to_dict())
+            ].fillna(row[1].to_dict())
 
-    # plot data
-    # consider adding rates in addition to absolute emissions
+    so2 = merged.iloc[:, -12:].mul(merged["so2Rate"], axis="index").sum()
+    nox = merged.iloc[:, -12:].mul(merged["noxRate"], axis="index").sum()
     co2 = merged.iloc[:, -12:].mul(merged["co2Rate"], axis="index").sum()
     emissions = pd.concat([nox, co2, so2], axis=1)
     emissions.columns = ["NOX", "CO2", "SO2"]
