@@ -12,7 +12,6 @@ def render_graph(scenario: Scenario, name: str):
         return
 
     if scenario["io_params"]["graphs_to_file"]:
-        plt.tight_layout()
         plt.savefig(f"{out_dir}{name}", dpi=300)
         plt.clf()
     else:
