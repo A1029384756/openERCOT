@@ -25,7 +25,7 @@ There is only one prerequisite to be able to use openERCOT and it will handle th
 
 ### Installation
 
-1. Get an API Key for [https://www.eia.gov/opendata/](https://www.eia.gov/opendata/) and an API Key for [https://api.data.gov/](https://api.data.gov/)
+1. Get an API Key for [https://www.eia.gov/opendata/](https://www.eia.gov/opendata/) and an API Key for [https://www.epa.gov/power-sector/cam-api-portal#/api-key-signup](https://www.epa.gov/power-sector/cam-api-portal#/api-key-signup)
 2. Clone the repo
    ```sh
    git clone https://github.com/A1029384756/openERCOT.git
